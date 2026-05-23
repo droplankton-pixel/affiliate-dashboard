@@ -1595,20 +1595,47 @@ function saveSupabaseKey() {
   startSupabaseRealtime();
 }
 function resetSyncOffset() { lastSyncOffset=0; localStorage.setItem("affiliateSyncOffset","0"); localStorage.removeItem("affiliateProcessedIds"); showToast("🔄 Reset! Sync sekarang..."); syncFromChannel(); }
-function saveGroups() { localStorage.setItem("affiliateGroupsV4",JSON.stringify(GROUPS)); }
-function loadGroups() {
-  try{const s=localStorage.getItem("affiliateGroupsV4");if(s)GROUPS=JSON.parse(s);}catch(e){}
-  if(!GROUPS.length){
-    GROUPS=[
+async function saveGroups() {
+  localStorage.setItem("affiliateGroupsV4", JSON.stringify(GROUPS));
+  const anonKey = localStorage.getItem("supabaseAnonKey");
+  if (!anonKey) return;
+  try {
+    await fetch(SUPA_URL + "/rest/v1/groups_data?id=eq.main", {
+      method: "PATCH",
+      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ data: GROUPS, updated_at: new Date().toISOString() })
+    });
+  } catch(e) {}
+}
+
+async function loadGroups() {
+  const anonKey = localStorage.getItem("supabaseAnonKey");
+  if (anonKey) {
+    try {
+      const res = await fetch(SUPA_URL + "/rest/v1/groups_data?id=eq.main", {
+        headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey }
+      });
+      const rows = await res.json();
+      if (rows && rows.length && rows[0].data && rows[0].data.length) {
+        GROUPS = rows[0].data;
+        localStorage.setItem("affiliateGroupsV4", JSON.stringify(GROUPS));
+        document.getElementById("groupBadge").textContent = GROUPS.length;
+        return;
+      }
+    } catch(e) {}
+  }
+  try { const s = localStorage.getItem("affiliateGroupsV4"); if(s) GROUPS = JSON.parse(s); } catch(e) {}
+  if (!GROUPS.length) {
+    GROUPS = [
       {id:"grp_01",name:"akun 01 mulai 28 Jan",chatId:"-1003795262278",topics:[]},
       {id:"grp_02",name:"akun 02 mulai 28 jan",chatId:"-1003875235359",topics:[]},
       {id:"grp_03",name:"akun 03 mulai 02 feb",chatId:"-1003772009097",topics:[]},
       {id:"grp_04",name:"akun 04 mulai 02 feb",chatId:"-1003559736559",topics:[]},
       {id:"grp_05",name:"indo 01",             chatId:"-1003754386033",topics:[]},
     ];
-    saveGroups();
+    await saveGroups();
   }
-  document.getElementById("groupBadge").textContent=GROUPS.length;
+  document.getElementById("groupBadge").textContent = GROUPS.length;
 }
 
 // ================================================================
@@ -2453,7 +2480,7 @@ function lbKeyHandler(e) {
 // ================================================================
 (async()=>{
   await initDB();
-  loadConfig(); loadGroups(); loadLists();
+  loadConfig(); await loadGroups(); loadLists();
   const savedKey = loadSupabaseConfig();
   if(savedKey) document.getElementById("supaKey").value = savedKey;
 
