@@ -11,6 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Affiliate">
   <meta name="theme-color" content="#080c14" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+  <link rel="manifest" id="pwa-manifest">
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2472,5 +2473,94 @@ function lbKeyHandler(e) {
 })();
 </script>
 
+<script>
+// ================================================================
+// PWA — Service Worker + Manifest
+// ================================================================
+(function() {
+  // Inject manifest dinamis
+  const manifest = {
+    name: "Affiliate Dashboard",
+    short_name: "Affiliate",
+    start_url: "./dashboard-mobile.html",
+    display: "standalone",
+    background_color: "#080c14",
+    theme_color: "#3b82f6",
+    orientation: "portrait",
+    icons: [{
+      src: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="32" fill="#3b82f6"/><text x="96" y="130" font-size="100" text-anchor="middle" fill="white">⚡</text></svg>'),
+      sizes: "192x192",
+      type: "image/svg+xml",
+      purpose: "any maskable"
+    }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type: "application/manifest+json"});
+  const url = URL.createObjectURL(blob);
+  document.getElementById("pwa-manifest").href = url;
+
+  // Register Service Worker inline via Blob
+  if ("serviceWorker" in navigator) {
+    const swCode = `
+const CACHE = "affiliate-v1";
+const ASSETS = [self.location.href.replace("/sw.js","") || "/"];
+
+self.addEventListener("install", e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(() => {})
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", e => {
+  if (e.request.method !== "GET") return;
+  e.respondWith(
+    fetch(e.request)
+      .then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
+  );
+});
+`;
+    const swBlob = new Blob([swCode], {type: "application/javascript"});
+    const swUrl = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swUrl, {scope: "./"})
+      .then(() => console.log("SW registered"))
+      .catch(e => console.log("SW error:", e));
+  }
+
+  // Prompt install
+  let deferredPrompt;
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Tampilkan banner install
+    const banner = document.createElement("div");
+    banner.id = "install-banner";
+    banner.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#3b82f6;color:white;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(59,130,246,0.4);cursor:pointer;";
+    banner.innerHTML = `<span>⚡</span><span>Install sebagai App</span><button onclick="document.getElementById('install-banner').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:6px;padding:2px 8px;cursor:pointer;margin-left:4px;">✕</button>`;
+    banner.onclick = async (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      banner.remove();
+      deferredPrompt = null;
+    };
+    document.body.appendChild(banner);
+    setTimeout(() => banner?.remove(), 8000);
+  });
+})();
+</script>
 </body>
 </html>
