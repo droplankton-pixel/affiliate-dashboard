@@ -423,6 +423,28 @@
         </div>
 
         <div class="settings-section">
+          <div class="settings-title">Kelola Data</div>
+          <div class="settings-group">
+            <div class="settings-row">
+              <div class="icn">📋</div>
+              <div class="meta">
+                <div class="label">Kelola List</div>
+                <div class="hint">Hapus list dengan konfirmasi PIN</div>
+              </div>
+              <button onclick="openManageListsPanel()" class="row-action danger">Kelola</button>
+            </div>
+            <div class="settings-row">
+              <div class="icn">🏘️</div>
+              <div class="meta">
+                <div class="label">Hapus Grup</div>
+                <div class="hint">Hapus grup dengan konfirmasi PIN</div>
+              </div>
+              <button onclick="openManageGroupsPanel()" class="row-action danger">Kelola</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-title">Backup</div>
           <div class="settings-group">
             <div class="settings-row">
@@ -586,7 +608,7 @@
           <p id="activeGroupName" style="font-size:13px;font-weight:800;margin:0">Pilih grup dulu</p>
           <p id="activeGroupChatId" style="font-size:11px;color:var(--text-3);margin:2px 0 0"></p>
           <div style="display:flex;gap:6px;margin-top:8px">
-            <button id="deleteGroupBtn" class="row-action danger hidden" onclick="deleteActiveGroup()" style="font-size:10px">🗑️ Hapus Grup</button>
+            <!-- Hapus Grup dipindah ke Setelan -->
             <button id="clearTopicsBtn" class="row-action warn hidden" onclick="clearAllTopics()" style="font-size:10px">🗑️ Clear Topik</button>
           </div>
         </div>
@@ -896,18 +918,102 @@ function addList() {
   selectList(id);
   showToast("✅ List \""+name+"\" dibuat!");
 }
-function deleteList(id) {
+function deleteList(id) { openManageListsPanel(); }
+
+// ================================================================
+// PIN MODAL
+// ================================================================
+let pinCallback = null;
+function openPinModal(title, desc, callback) {
+  pinCallback = callback;
+  document.getElementById("pinTitle").textContent = title;
+  document.getElementById("pinDesc").textContent = desc;
+  document.getElementById("pinInput").value = "";
+  document.getElementById("pinError").style.display = "none";
+  document.getElementById("pinModal").style.display = "flex";
+  setTimeout(() => document.getElementById("pinInput").focus(), 100);
+}
+function closePinModal() {
+  document.getElementById("pinModal").style.display = "none";
+  pinCallback = null;
+}
+function confirmPin() {
+  const pin = document.getElementById("pinInput").value;
+  if (pin !== "201374") {
+    document.getElementById("pinError").style.display = "block";
+    document.getElementById("pinInput").value = "";
+    return;
+  }
+  document.getElementById("pinModal").style.display = "none";
+  if (pinCallback) pinCallback();
+  pinCallback = null;
+}
+
+// ================================================================
+// KELOLA LIST PANEL
+// ================================================================
+function openManageListsPanel() {
+  const body = document.getElementById("manageListsBody");
+  body.innerHTML = "";
+  if (!LISTS.length) {
+    body.innerHTML = "<p style='font-size:12px;color:var(--text-3);text-align:center;padding:16px;'>Belum ada list.</p>";
+  }
+  LISTS.forEach(l => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;";
+    row.innerHTML = "<span style='font-size:13px;font-weight:600;color:var(--text-1);'>" + l.name + "</span>" +
+      "<button onclick="confirmDeleteList('"+l.id+"')" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
+    body.appendChild(row);
+  });
+  document.getElementById("manageLists").style.display = "flex";
+}
+function confirmDeleteList(id) {
   const list = LISTS.find(l=>l.id===id);
   if (!list) return;
-  if (!confirm("Hapus list \""+list.name+"\"?\nSemua produk di list ini ikut terhapus.")) return;
-  dbGetByList(id).then(products => {
-    products.forEach(p => dbDelete(p.id));
-    LISTS = LISTS.filter(l=>l.id!==id);
-    if (activeListId === id) activeListId = LISTS.length ? LISTS[0].id : null;
-    saveLists(); renderListTabs();
-    if (activeListId) selectList(activeListId);
-    else { document.getElementById("productGrid").innerHTML=""; document.getElementById("productGrid2").innerHTML=""; showEmptyState("noList"); }
-    showToast("🗑️ List \""+list.name+"\" dihapus.");
+  if (!confirm("Yakin hapus list \""+list.name+"\"?\nSemua produk ikut terhapus.")) return;
+  openPinModal("Konfirmasi Hapus List", "Masukkan PIN untuk hapus \""+list.name+"\"", () => {
+    dbGetByList(id).then(products => {
+      products.forEach(p => dbDelete(p.id));
+      LISTS = LISTS.filter(l=>l.id!==id);
+      if (activeListId === id) activeListId = LISTS.length ? LISTS[0].id : null;
+      saveLists(); renderListTabs();
+      if (activeListId) selectList(activeListId);
+      else { document.getElementById("productGrid").innerHTML=""; document.getElementById("productGrid2").innerHTML=""; showEmptyState("noList"); }
+      showToast("🗑️ List \""+list.name+"\" dihapus.");
+      openManageListsPanel();
+    });
+  });
+}
+
+// ================================================================
+// KELOLA GRUP PANEL
+// ================================================================
+function openManageGroupsPanel() {
+  const body = document.getElementById("manageGroupsBody");
+  body.innerHTML = "";
+  if (!GROUPS.length) {
+    body.innerHTML = "<p style='font-size:12px;color:var(--text-3);text-align:center;padding:16px;'>Belum ada grup.</p>";
+  }
+  GROUPS.forEach(g => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;";
+    row.innerHTML = "<div><p style='font-size:13px;font-weight:600;color:var(--text-1);margin:0;'>" + g.name + "</p>" +
+      "<p style='font-size:11px;color:var(--text-3);margin:0;'>" + g.chatId + " · " + (g.topics?.length||0) + " topik</p></div>" +
+      "<button onclick="confirmDeleteGroup('"+g.id+"')" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
+    body.appendChild(row);
+  });
+  document.getElementById("manageGroups").style.display = "flex";
+}
+function confirmDeleteGroup(id) {
+  const g = GROUPS.find(x=>x.id===id);
+  if (!g) return;
+  if (!confirm("Yakin hapus grup \""+g.name+"\"?")) return;
+  openPinModal("Konfirmasi Hapus Grup", "Masukkan PIN untuk hapus \""+g.name+"\"", () => {
+    GROUPS = GROUPS.filter(x=>x.id!==id);
+    if (activeGroupId === id) activeGroupId = null;
+    saveGroups(); renderGroupSidebar();
+    showToast("🗑️ Grup \""+g.name+"\" dihapus.");
+    openManageGroupsPanel();
   });
 }
 function renderListTabs() {
@@ -922,11 +1028,7 @@ function renderListTabs() {
     const nameSpan = document.createElement("span");
     nameSpan.textContent = l.name;
     btn.appendChild(nameSpan);
-    const xSpan = document.createElement("span");
-    xSpan.className = "x";
-    xSpan.textContent = "✕";
-    xSpan.onclick = (e) => { e.stopPropagation(); deleteList(l.id); };
-    btn.appendChild(xSpan);
+
     btn.onclick = () => selectList(l.id);
     container.appendChild(btn);
 
@@ -1089,15 +1191,10 @@ function renderGrid(products, query) {
       "<div class=\"pcard-body\">"+
         "<div class=\"pcard-name\">"+displayName+"</div>"+
         "<a href=\""+esc(p.link)+"\" target=\"_blank\" class=\"pcard-link\">"+esc(p.link)+"</a>"+
-        "<div class=\"ms-wrap\" id=\"msWrap-"+p.id+"\">"+
-          "<div class=\"ms-trigger\" id=\"msTrigger-"+p.id+"\" onclick=\"toggleMultiSelect("+p.id+")\">"+
-            "<span class=\"lbl\" id=\"msLabel-"+p.id+"\">— Pilih grup &amp; topik —</span>"+
-            "<span class=\"car\">▼</span>"+
-          "</div>"+
-          "<div id=\"msDropdown-"+p.id+"\" class=\"ms-dropdown hidden\">"+
-            buildMultiSelectHTML(p.id)+
-          "</div>"+
-        "</div>"+
+        "<select id=\"grpSel-"+p.id+"\" style=\"width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:11px;color:var(--text-3);margin-bottom:4px;\">"+
+          "<option value=\"\">— Pilih grup —</option>"+
+          GROUPS.filter(g=>g.topics&&g.topics.length>0).map(g=>"<option value=\""+g.id+"\">"+g.name+"</option>").join("")+
+        "</select>"+
         "<div class=\"pcard-actions\">"+
           "<button onclick=\"sendToTelegram("+p.id+")\" id=\"tgBtn-"+p.id+"\" class=\"btn-send\">✈️ Kirim</button>"+
           "<button onclick=\"openEditModal("+p.id+")\" class=\"btn-icn\" title=\"Edit\">✏️</button>"+
@@ -1148,13 +1245,12 @@ function updateMultiLabel(pid) {
 }
 
 function getSelectedTargets(pid) {
-  const activePageEl = document.querySelector(".page.active");
-  const dd = activePageEl ? activePageEl.querySelector("#msDropdown-"+pid) : null;
-  if (!dd) return [];
-  return [...dd.querySelectorAll(".multi-chk:checked")].map(chk => {
-    const row = chk.closest("label");
-    return { groupId: row.dataset.gid, threadId: row.dataset.tid, topicName: row.dataset.tname, groupName: row.dataset.gname };
-  });
+  const sel = document.querySelector("#grpSel-"+pid);
+  if (!sel || !sel.value) return [];
+  const g = GROUPS.find(x => x.id === sel.value);
+  if (!g || !g.topics || !g.topics.length) return [];
+  const t = g.topics[0];
+  return [{ groupId: g.id, threadId: t.threadId, topicName: t.name, groupName: g.name }];
 }
 
 document.addEventListener("click", e => {
@@ -2424,6 +2520,44 @@ function closeAddSheet() {
 })();
 
 // ================================================================
+// PIN MODAL + PANELS (injected via JS)
+(function() {
+  const pinHtml = `
+<div id="pinModal" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border-radius:20px;padding:24px;width:100%;max-width:320px;text-align:center;">
+    <div style="font-size:28px;margin-bottom:8px;">🔐</div>
+    <h3 id="pinTitle" style="font-weight:700;color:var(--text-1);margin-bottom:4px;font-size:15px;">Konfirmasi PIN</h3>
+    <p id="pinDesc" style="font-size:12px;color:var(--text-3);margin-bottom:16px;"></p>
+    <input type="password" id="pinInput" maxlength="6" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center;font-size:20px;font-weight:700;letter-spacing:8px;color:var(--text-1);margin-bottom:8px;" placeholder="······"/>
+    <p id="pinError" style="font-size:12px;color:#ef4444;margin-bottom:12px;display:none;">PIN salah!</p>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closePinModal()" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-3);font-size:13px;">Batal</button>
+      <button onclick="confirmPin()" style="flex:1;padding:10px;border-radius:12px;background:#dc2626;color:white;font-size:13px;font-weight:700;border:none;">Hapus</button>
+    </div>
+  </div>
+</div>
+<div id="manageLists" style="position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.7);display:none;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <h3 style="font-weight:700;color:var(--text-1);font-size:15px;">📋 Kelola List</h3>
+      <button onclick="document.getElementById('manageLists').style.display='none'" style="color:var(--text-3);font-size:20px;background:none;border:none;">✕</button>
+    </div>
+    <div id="manageListsBody" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+</div>
+<div id="manageGroups" style="position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.7);display:none;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <h3 style="font-weight:700;color:var(--text-1);font-size:15px;">🏘️ Kelola Grup</h3>
+      <button onclick="document.getElementById('manageGroups').style.display='none'" style="color:var(--text-3);font-size:20px;background:none;border:none;">✕</button>
+    </div>
+    <div id="manageGroupsBody" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+</div>`;
+  document.body.insertAdjacentHTML('beforeend', pinHtml);
+  document.getElementById('pinInput').addEventListener('keyup', e => { if(e.key==='Enter') confirmPin(); });
+})();
+
 // LIGHTBOX
 // ================================================================
 let lbImgs = [], lbIdx = 0;
