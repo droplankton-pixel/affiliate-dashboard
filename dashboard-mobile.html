@@ -1533,7 +1533,7 @@ function selectGroup(gid) {
   const g=GROUPS.find(x=>x.id===gid);
   document.getElementById("activeGroupName").textContent=g.name;
   document.getElementById("activeGroupChatId").textContent="Chat ID: "+g.chatId;
-  document.getElementById("deleteGroupBtn").classList.remove("hidden");
+  const _dg = document.getElementById("deleteGroupBtn"); if(_dg) _dg.classList.remove("hidden");
   document.getElementById("clearTopicsBtn").classList.remove("hidden");
   document.getElementById("topicTabs").classList.remove("hidden");
   document.getElementById("topicTabs").style.display = "flex";
@@ -1554,7 +1554,7 @@ function deleteActiveGroup() {
   saveGroups(); renderGroupSidebar();
   document.getElementById("activeGroupName").textContent="Pilih grup di atas";
   document.getElementById("activeGroupChatId").textContent="";
-  document.getElementById("deleteGroupBtn").classList.add("hidden");
+  const _dg2 = document.getElementById("deleteGroupBtn"); if(_dg2) _dg2.classList.add("hidden");
   document.getElementById("clearTopicsBtn").classList.add("hidden");
   document.getElementById("topicTabs").classList.add("hidden");
   document.getElementById("noGroupSelected").classList.remove("hidden");
