@@ -974,7 +974,7 @@ function openManageListsPanel() {
     const row = document.createElement("div");
     row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;";
     row.innerHTML = "<span style='font-size:13px;font-weight:600;color:var(--text-1);'>" + l.name + "</span>" +
-      "<button onclick="confirmDeleteList('"+l.id+"')" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
+      "<button onclick=\"confirmDeleteList('"+l.id+"')\" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
     body.appendChild(row);
   });
   document.getElementById("manageLists").style.display = "flex";
@@ -1011,7 +1011,7 @@ function openManageGroupsPanel() {
     row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;";
     row.innerHTML = "<div><p style='font-size:13px;font-weight:600;color:var(--text-1);margin:0;'>" + g.name + "</p>" +
       "<p style='font-size:11px;color:var(--text-3);margin:0;'>" + g.chatId + " · " + (g.topics?.length||0) + " topik</p></div>" +
-      "<button onclick="confirmDeleteGroup('"+g.id+"')" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
+      "<button onclick=\"confirmDeleteGroup('"+g.id+"')\" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
     body.appendChild(row);
   });
   document.getElementById("manageGroups").style.display = "flex";
