@@ -1203,9 +1203,10 @@ function renderGrid(products, query) {
       "<div class=\"pcard-body\">"+
         "<div class=\"pcard-name\">"+displayName+"</div>"+
         "<a href=\""+esc(p.link)+"\" target=\"_blank\" class=\"pcard-link\">"+esc(p.link)+"</a>"+
-        "<div id=\"grpLabel-"+p.id+"\" onclick=\"openGrupSheet("+p.id+")\" style=\"width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:11px;color:var(--text-3);margin-bottom:4px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;\">"+
-          "<span id=\"grpLabelTxt-"+p.id+"\">— Pilih grup —</span><span>▼</span>"+
-        "</div>"+
+        "<select id=\"grpSel-"+p.id+"\" style=\"width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:11px;color:var(--text-3);margin-bottom:4px;\">"+
+          "<option value=\"\">— Pilih grup —</option>"+
+          GROUPS.filter(g=>g.topics&&g.topics.length>0).map(g=>"<option value=\""+g.id+"\">"+g.name+"</option>").join("")+
+        "</select>"+
         "<div class=\"pcard-actions\">"+
           "<button onclick=\"sendToTelegram("+p.id+")\" id=\"tgBtn-"+p.id+"\" class=\"btn-send\">✈️ Kirim</button>"+
           "<button onclick=\"openEditModal("+p.id+")\" class=\"btn-icn\" title=\"Edit\">✏️</button>"+
@@ -1255,66 +1256,13 @@ function updateMultiLabel(pid) {
   });
 }
 
-// State pilihan grup per produk
-const selectedGrupsMap = {}; // pid -> [groupId, ...]
-
-function openGrupSheet(pid) {
-  window._currentGrupPid = pid;
-  const validGroups = GROUPS.filter(g => g.topics && g.topics.length > 0);
-  const selected = selectedGrupsMap[pid] || [];
-
-  const body = document.getElementById("grupSheetBody");
-  if (!body) return;
-
-  if (!validGroups.length) {
-    body.innerHTML = "<p style='text-align:center;color:var(--text-3);font-size:13px;padding:20px;'>Belum ada grup dengan topik.<br>Tambah topik dulu di tab Grup.</p>";
-  } else {
-    body.innerHTML = validGroups.map(g => {
-      const isChecked = selected.includes(g.id);
-      return "<label style='display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;'>" +
-        "<input type='checkbox' value='"+g.id+"' "+(isChecked?"checked":"")+" style='width:18px;height:18px;accent-color:var(--accent);'>" +
-        "<div><p style='margin:0;font-size:14px;font-weight:600;color:var(--text-1);'>"+g.name+"</p>" +
-        "<p style='margin:0;font-size:11px;color:var(--text-3);'>📌 "+g.topics[0].name+"</p></div>" +
-        "</label>";
-    }).join("");
-  }
-
-  document.getElementById("grupSheet").style.display = "flex";
-}
-
-function confirmGrupSelection() {
-  const pid = window._currentGrupPid;
-  if (!pid) return;
-  const checks = document.querySelectorAll("#grupSheetBody input[type=checkbox]:checked");
-  const ids = [...checks].map(c => c.value);
-  selectedGrupsMap[pid] = ids;
-
-  // Update label di semua cards
-  document.querySelectorAll("#grpLabelTxt-"+pid).forEach(el => {
-    if (!ids.length) {
-      el.textContent = "— Pilih grup —";
-      el.style.color = "var(--text-3)";
-    } else {
-      const names = ids.map(id => GROUPS.find(g=>g.id===id)?.name || "").filter(Boolean);
-      el.textContent = names.join(", ");
-      el.style.color = "var(--accent)";
-    }
-  });
-
-  document.getElementById("grupSheet").style.display = "none";
-}
-
 function getSelectedTargets(pid) {
-  const ids = selectedGrupsMap[pid] || [];
-  const targets = [];
-  ids.forEach(gid => {
-    const g = GROUPS.find(x => x.id === gid);
-    if (g && g.topics && g.topics.length > 0) {
-      const t = g.topics[0];
-      targets.push({ groupId: g.id, threadId: t.threadId, topicName: t.name, groupName: g.name });
-    }
-  });
-  return targets;
+  const sel = document.querySelector("#grpSel-"+pid);
+  if (!sel || !sel.value) return [];
+  const g = GROUPS.find(x => x.id === sel.value);
+  if (!g || !g.topics || !g.topics.length) return [];
+  const t = g.topics[0];
+  return [{ groupId: g.id, threadId: t.threadId, topicName: t.name, groupName: g.name }];
 }
 
 document.addEventListener("click", e => {
@@ -1515,16 +1463,31 @@ function switchMTab(tab) {
   document.getElementById("mPanelGroups").style.display = tab==="groups" ? "block" : "none";
   document.getElementById("mPanelTopics").style.display = tab==="topics" ? "block" : "none";
 }
+function moveGroup(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= GROUPS.length) return;
+  const tmp = GROUPS[idx]; GROUPS[idx] = GROUPS[newIdx]; GROUPS[newIdx] = tmp;
+  saveGroups(); renderGroupSidebar();
+}
+
 function renderGroupSidebar() {
   const sb=document.getElementById("groupSidebar");
   sb.innerHTML="";
   document.getElementById("groupBadge").textContent=GROUPS.length;
   if(!GROUPS.length){sb.innerHTML="<p style=\"font-size:12px;color:var(--text-3);text-align:center;padding:20px 0\">Belum ada grup.</p>";return;}
-  GROUPS.forEach(g=>{
+  GROUPS.forEach((g, idx)=>{
     const div=document.createElement("div");
     div.className="grp-card " + (activeGroupId===g.id?"active":"");
-    div.innerHTML = "<p style=\"font-size:13px;font-weight:700;color:var(--text);margin:0\">"+esc(g.name)+"</p><p style=\"font-size:11px;color:var(--text-3);margin:3px 0 0\">"+esc(g.chatId)+" · "+g.topics.length+" topik</p>";
-    div.onclick=()=>{ selectGroup(g.id); switchMTab("topics"); };
+    div.style.cssText="display:flex;align-items:center;gap:8px;";
+    div.innerHTML =
+      "<div style=\"flex:1;min-width:0;\" onclick=\"selectGroup('"+g.id+"');switchMTab('topics');\">" +
+        "<p style=\"font-size:13px;font-weight:700;color:var(--text);margin:0\">"+esc(g.name)+"</p>" +
+        "<p style=\"font-size:11px;color:var(--text-3);margin:3px 0 0\">"+esc(g.chatId)+" · "+g.topics.length+" topik</p>" +
+      "</div>" +
+      "<div style=\"display:flex;flex-direction:column;gap:2px;flex-shrink:0;\">" +
+        "<button onclick=\"event.stopPropagation();moveGroup("+idx+",-1)\" style=\"background:var(--border);border:none;color:"+(idx===0?"var(--text-3)":"var(--text-2)")+";border-radius:6px;width:24px;height:24px;font-size:12px;cursor:"+(idx===0?"not-allowed":"pointer")+";line-height:1;\" "+(idx===0?"disabled":"")+">↑</button>" +
+        "<button onclick=\"event.stopPropagation();moveGroup("+idx+",1)\" style=\"background:var(--border);border:none;color:"+(idx===GROUPS.length-1?"var(--text-3)":"var(--text-2)")+";border-radius:6px;width:24px;height:24px;font-size:12px;cursor:"+(idx===GROUPS.length-1?"not-allowed":"pointer")+";line-height:1;\" "+(idx===GROUPS.length-1?"disabled":"")+">↓</button>" +
+      "</div>";
     sb.appendChild(div);
   });
 }
@@ -1533,7 +1496,7 @@ function selectGroup(gid) {
   const g=GROUPS.find(x=>x.id===gid);
   document.getElementById("activeGroupName").textContent=g.name;
   document.getElementById("activeGroupChatId").textContent="Chat ID: "+g.chatId;
-  const _dg = document.getElementById("deleteGroupBtn"); if(_dg) _dg.classList.remove("hidden");
+  document.getElementById("deleteGroupBtn").classList.remove("hidden");
   document.getElementById("clearTopicsBtn").classList.remove("hidden");
   document.getElementById("topicTabs").classList.remove("hidden");
   document.getElementById("topicTabs").style.display = "flex";
@@ -1554,7 +1517,7 @@ function deleteActiveGroup() {
   saveGroups(); renderGroupSidebar();
   document.getElementById("activeGroupName").textContent="Pilih grup di atas";
   document.getElementById("activeGroupChatId").textContent="";
-  const _dg2 = document.getElementById("deleteGroupBtn"); if(_dg2) _dg2.classList.add("hidden");
+  document.getElementById("deleteGroupBtn").classList.add("hidden");
   document.getElementById("clearTopicsBtn").classList.add("hidden");
   document.getElementById("topicTabs").classList.add("hidden");
   document.getElementById("noGroupSelected").classList.remove("hidden");
@@ -2645,23 +2608,6 @@ function closeAddSheet() {
 </div>`;
   document.body.insertAdjacentHTML('beforeend', pinHtml);
   document.getElementById('pinInput').addEventListener('keyup', e => { if(e.key==='Enter') confirmPin(); });
-
-  // Grup selection bottom sheet
-  const grupSheetHtml = `
-<div id="grupSheet" style="position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:75vh;display:flex;flex-direction:column;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
-      <h3 style="font-weight:700;color:var(--text-1);font-size:15px;">📤 Pilih Grup Tujuan</h3>
-      <button onclick="document.getElementById('grupSheet').style.display='none'" style="color:var(--text-3);font-size:20px;background:none;border:none;">✕</button>
-    </div>
-    <p style="font-size:11px;color:var(--text-3);padding:8px 20px 0;">Otomatis kirim ke topik pertama tiap grup</p>
-    <div id="grupSheetBody" style="flex:1;overflow-y:auto;"></div>
-    <div style="padding:16px;border-top:1px solid var(--border);">
-      <button onclick="confirmGrupSelection()" style="width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:white;font-size:14px;font-weight:700;border:none;">✅ Konfirmasi Pilihan</button>
-    </div>
-  </div>
-</div>`;
-  document.body.insertAdjacentHTML('beforeend', grupSheetHtml);
 })();
 
 // LIGHTBOX
