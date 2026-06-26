@@ -1496,18 +1496,16 @@ function selectGroup(gid) {
   const g=GROUPS.find(x=>x.id===gid);
   document.getElementById("activeGroupName").textContent=g.name;
   document.getElementById("activeGroupChatId").textContent="Chat ID: "+g.chatId;
-  document.getElementById("deleteGroupBtn").classList.remove("hidden");
-  document.getElementById("clearTopicsBtn").classList.remove("hidden");
-  document.getElementById("topicTabs").classList.remove("hidden");
-  document.getElementById("topicTabs").style.display = "flex";
-  document.getElementById("noGroupSelected").classList.add("hidden");
-  document.getElementById("topicListContainer").classList.remove("hidden");
-  document.getElementById("topicsPriBtn").disabled = false;
-  document.getElementById("topicsPriBtn").style.opacity = 1;
+  const _dg = document.getElementById("deleteGroupBtn"); if(_dg) _dg.classList.remove("hidden");
+  const _cg = document.getElementById("clearTopicsBtn"); if(_cg) _cg.classList.remove("hidden");
+  const _tt = document.getElementById("topicTabs"); if(_tt){ _tt.classList.remove("hidden"); _tt.style.display="flex"; }
+  const _ng = document.getElementById("noGroupSelected"); if(_ng) _ng.classList.add("hidden");
+  const _tl = document.getElementById("topicListContainer"); if(_tl) _tl.classList.remove("hidden");
+  const _tp = document.getElementById("topicsPriBtn"); if(_tp){ _tp.disabled=false; _tp.style.opacity=1; }
   switchTopicTab("list"); renderGroupSidebar(); renderTopicList();
   fetchedTopics=[]; selectedFetched.clear();
-  document.getElementById("fetchResults").innerHTML="";
-  document.getElementById("addSelectedBtn").classList.add("hidden");
+  const _fr = document.getElementById("fetchResults"); if(_fr) _fr.innerHTML="";
+  const _ab = document.getElementById("addSelectedBtn"); if(_ab) _ab.classList.add("hidden");
   updateBulkPreview();
 }
 function deleteActiveGroup() {
@@ -1517,11 +1515,11 @@ function deleteActiveGroup() {
   saveGroups(); renderGroupSidebar();
   document.getElementById("activeGroupName").textContent="Pilih grup di atas";
   document.getElementById("activeGroupChatId").textContent="";
-  document.getElementById("deleteGroupBtn").classList.add("hidden");
-  document.getElementById("clearTopicsBtn").classList.add("hidden");
-  document.getElementById("topicTabs").classList.add("hidden");
-  document.getElementById("noGroupSelected").classList.remove("hidden");
-  document.getElementById("topicListContainer").classList.add("hidden");
+  const _dg3 = document.getElementById("deleteGroupBtn"); if(_dg3) _dg3.classList.add("hidden");
+  const _cg3 = document.getElementById("clearTopicsBtn"); if(_cg3) _cg3.classList.add("hidden");
+  const _tt3 = document.getElementById("topicTabs"); if(_tt3) _tt3.classList.add("hidden");
+  const _ng3 = document.getElementById("noGroupSelected"); if(_ng3) _ng3.classList.remove("hidden");
+  const _tl3 = document.getElementById("topicListContainer"); if(_tl3) _tl3.classList.add("hidden");
   switchMTab("groups");
   showToast("🗑️ Grup dihapus.");
 }
