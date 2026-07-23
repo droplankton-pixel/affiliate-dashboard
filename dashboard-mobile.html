@@ -630,6 +630,7 @@
           <button onclick="switchTopicTab('create')" id="tabCreate" class="tab-btn">✨ Auto</button>
           <button onclick="switchTopicTab('manual')" id="tabManual" class="tab-btn">✏️ Manual</button>
           <button onclick="switchTopicTab('fetch')"  id="tabFetch"  class="tab-btn">🔄 Fetch</button>
+          <button onclick="switchTopicTab('massal')" id="tabMassal" class="tab-btn">🌐 Massal</button>
         </div>
 
         <div id="panelList">
@@ -682,6 +683,37 @@
           <button onclick="fetchTopicsForGroup()" id="fetchBtn" class="btn-primary" style="background:linear-gradient(135deg,var(--success),#047857);margin-bottom:10px">🔄 Fetch Topik</button>
           <div id="fetchResults" style="max-height:240px;overflow:auto"></div>
           <button onclick="addSelectedTopics()" id="addSelectedBtn" class="hidden btn-primary" style="margin-top:10px">✅ Tambahkan Terpilih</button>
+        </div>
+
+        <div id="panelMassal" class="hidden">
+          <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:8px 12px;margin-bottom:10px">
+            <p style="font-size:11px;color:var(--accent);font-weight:700;margin:0">🌐 Buat Topik Massal Lintas Grup</p>
+            <p style="font-size:10px;color:var(--text-3);margin:2px 0 0">Buat topik yang sama di banyak grup sekaligus</p>
+          </div>
+          <p style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px">Pilih Grup Target</p>
+          <div id="massalGroupList" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:6px;margin-bottom:10px;background:var(--bg)"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><label style="font-size:10px;color:var(--text-3)">Prefix (opsional)</label>
+              <input id="massalPrefix" oninput="updateMassalPreview()" placeholder="Produk " style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text)"/></div>
+            <div><label style="font-size:10px;color:var(--text-3)">Jeda (detik)</label>
+              <input id="massalDelay" type="number" value="2" min="1.5" step="0.5" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text)"/></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><label style="font-size:10px;color:var(--text-3)">Dari</label>
+              <input id="massalFrom" type="number" value="1" oninput="updateMassalPreview()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text)"/></div>
+            <div><label style="font-size:10px;color:var(--text-3)">Sampai</label>
+              <input id="massalTo" type="number" value="10" oninput="updateMassalPreview()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text)"/></div>
+          </div>
+          <p id="massalPreview" style="font-size:10px;color:var(--text-3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin:0 0 10px"></p>
+          <button onclick="startMassalCreate()" id="massalBtn" class="btn-primary" style="background:linear-gradient(135deg,var(--accent),#1d4ed8)">🚀 Mulai</button>
+          <button onclick="stopMassalCreate()" id="massalStopBtn" class="hidden row-action danger" style="margin-top:8px;width:100%">⏹ Stop</button>
+          <div id="massalProgressSection" class="hidden" style="margin-top:10px">
+            <div style="background:var(--border);height:5px;border-radius:99px;overflow:hidden"><div id="massalProgressBar" style="background:var(--accent);height:5px;width:0%;transition:width 0.3s"></div></div>
+            <p id="massalProgressText" style="font-size:10px;color:var(--text-3);text-align:center;margin:4px 0 0"></p>
+          </div>
+          <div id="massalLog" class="hidden" style="max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:6px;margin-top:8px;background:var(--bg)">
+            <div id="massalLogList"></div>
+          </div>
         </div>
 
       </div>
@@ -1003,15 +1035,36 @@ function confirmDeleteList(id) {
 function openManageGroupsPanel() {
   const body = document.getElementById("manageGroupsBody");
   body.innerHTML = "";
+
+  // Tombol tambah kategori
+  const catBtn = document.createElement("button");
+  catBtn.style.cssText = "width:100%;padding:10px;border-radius:12px;font-size:13px;font-weight:700;border:1.5px dashed var(--accent);background:transparent;color:var(--accent);margin-bottom:4px;";
+  catBtn.textContent = "➕ Tambah Kategori Baru";
+  catBtn.onclick = addCategory;
+  body.appendChild(catBtn);
+
+  if (CATEGORIES.length) {
+    const catInfo = document.createElement("p");
+    catInfo.style.cssText = "font-size:11px;color:var(--text-3);margin:0 0 8px;text-align:center;";
+    catInfo.textContent = "Kategori: " + CATEGORIES.join(", ");
+    body.appendChild(catInfo);
+  }
+
   if (!GROUPS.length) {
-    body.innerHTML = "<p style='font-size:12px;color:var(--text-3);text-align:center;padding:16px;'>Belum ada grup.</p>";
+    body.innerHTML += "<p style='font-size:12px;color:var(--text-3);text-align:center;padding:16px;'>Belum ada grup.</p>";
   }
   GROUPS.forEach(g => {
     const row = document.createElement("div");
-    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;";
-    row.innerHTML = "<div><p style='font-size:13px;font-weight:600;color:var(--text-1);margin:0;'>" + g.name + "</p>" +
-      "<p style='font-size:11px;color:var(--text-3);margin:0;'>" + g.chatId + " · " + (g.topics?.length||0) + " topik</p></div>" +
-      "<button onclick=\"confirmDeleteGroup('"+g.id+"')\" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️ Hapus</button>";
+    row.style.cssText = "background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;";
+    const catOpts = ["<option value=''>— Tanpa kategori —</option>"]
+      .concat(CATEGORIES.map(c => "<option value='"+c+"' "+(g.category===c?"selected":"")+">"+c+"</option>")).join("");
+    row.innerHTML =
+      "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;'>" +
+        "<div><p style='font-size:13px;font-weight:600;color:var(--text);margin:0;'>" + g.name + "</p>" +
+        "<p style='font-size:11px;color:var(--text-3);margin:0;'>" + g.chatId + " · " + (g.topics?.length||0) + " topik</p></div>" +
+        "<button onclick=\"confirmDeleteGroup('"+g.id+"')\" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️</button>" +
+      "</div>" +
+      "<select onchange=\"setGroupCategory('"+g.id+"', this.value)\" style='width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);'>" + catOpts + "</select>";
     body.appendChild(row);
   });
   document.getElementById("manageGroups").style.display = "flex";
@@ -1255,41 +1308,175 @@ function updateMultiLabel(pid) {
   });
 }
 
-// State pilihan grup per produk
+// ================================================================
+// KATEGORI GRUP
+// ================================================================
+let CATEGORIES = [];
+
+function loadCategories() {
+  try { const s = localStorage.getItem("grupCategories"); if(s) CATEGORIES = JSON.parse(s); } catch(e) {}
+}
+
+async function saveCategories() {
+  localStorage.setItem("grupCategories", JSON.stringify(CATEGORIES));
+  const anonKey = localStorage.getItem("supabaseAnonKey");
+  if (!anonKey) return;
+  try {
+    await fetch(SUPA_URL + "/rest/v1/groups_data?id=eq.categories", {
+      method: "DELETE",
+      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey }
+    });
+    await fetch(SUPA_URL + "/rest/v1/groups_data", {
+      method: "POST",
+      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "categories", data: CATEGORIES, updated_at: new Date().toISOString() })
+    });
+  } catch(e) {}
+}
+
+async function loadCategoriesFromSupabase() {
+  const anonKey = localStorage.getItem("supabaseAnonKey");
+  if (!anonKey) { loadCategories(); return; }
+  try {
+    const res = await fetch(SUPA_URL + "/rest/v1/groups_data?id=eq.categories", {
+      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey }
+    });
+    const rows = await res.json();
+    if (rows && rows.length && Array.isArray(rows[0].data)) {
+      CATEGORIES = rows[0].data;
+      localStorage.setItem("grupCategories", JSON.stringify(CATEGORIES));
+      return;
+    }
+  } catch(e) {}
+  loadCategories();
+}
+
+function addCategory() {
+  const name = prompt("Nama kategori baru:");
+  if (!name || !name.trim()) return;
+  const clean = name.trim().toUpperCase();
+  if (CATEGORIES.includes(clean)) { showToast("⚠️ Kategori sudah ada!","warn"); return; }
+  CATEGORIES.push(clean);
+  saveCategories();
+  openManageGroupsPanel();
+  showToast("✅ Kategori \""+clean+"\" ditambahkan!");
+}
+
+function setGroupCategory(gid, cat) {
+  const g = GROUPS.find(x => x.id === gid);
+  if (!g) return;
+  g.category = cat || null;
+  saveGroups();
+}
+
+// ================================================================
+// GRUP SHEET — pilih grup tujuan dengan tab kategori
+// ================================================================
 const selectedGrupsMap = {};
+let activeGrupTab = "__all__";
 
 function openGrupSheet(pid) {
   window._currentGrupPid = pid;
+  activeGrupTab = "__all__";
+  renderGrupSheet();
+  document.getElementById("grupSheet").style.display = "flex";
+}
+
+function renderGrupSheet() {
+  const pid = window._currentGrupPid;
   const validGroups = GROUPS.filter(g => g.topics && g.topics.length > 0);
   const selected = selectedGrupsMap[pid] || [];
+  const tabsEl = document.getElementById("grupSheetTabs");
   const body = document.getElementById("grupSheetBody");
+  const selAllEl = document.getElementById("grupSheetSelAll");
   if (!body) return;
-  if (!validGroups.length) {
-    body.innerHTML = "<p style='text-align:center;color:var(--text-3);font-size:13px;padding:20px;'>Belum ada grup dengan topik.</p>";
+
+  // Kategori yang dipakai grup + Lainnya
+  const usedCats = CATEGORIES.filter(c => validGroups.some(g => g.category === c));
+  const hasUncat = validGroups.some(g => !g.category || !CATEGORIES.includes(g.category));
+
+  // Render tabs
+  let tabsHtml = "<button onclick=\"switchGrupTab('__all__')\" style='flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid "+(activeGrupTab==='__all__'?"var(--accent);background:var(--accent);color:white":"var(--border);background:transparent;color:var(--text-3)")+";'>Semua</button>";
+  usedCats.forEach(c => {
+    const on = activeGrupTab === c;
+    tabsHtml += "<button onclick=\"switchGrupTab('"+c.replace(/'/g,"\\'")+"')\" style='flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid "+(on?"var(--accent);background:var(--accent);color:white":"var(--border);background:transparent;color:var(--text-3)")+";'>"+esc(c)+"</button>";
+  });
+  if (hasUncat) {
+    const on = activeGrupTab === "__uncat__";
+    tabsHtml += "<button onclick=\"switchGrupTab('__uncat__')\" style='flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid "+(on?"var(--accent);background:var(--accent);color:white":"var(--border);background:transparent;color:var(--text-3)")+";'>Lainnya</button>";
+  }
+  tabsEl.innerHTML = tabsHtml;
+
+  // Filter grup sesuai tab
+  let shown = validGroups;
+  if (activeGrupTab === "__uncat__") shown = validGroups.filter(g => !g.category || !CATEGORIES.includes(g.category));
+  else if (activeGrupTab !== "__all__") shown = validGroups.filter(g => g.category === activeGrupTab);
+
+  // Tombol pilih semua (hanya di tab kategori, bukan Semua)
+  if (activeGrupTab !== "__all__" && shown.length) {
+    const allChecked = shown.every(g => selected.includes(g.id));
+    selAllEl.innerHTML = "<button onclick=\"toggleSelectAllGrup()\" style='width:100%;padding:10px;border-radius:12px;font-size:13px;font-weight:700;border:1.5px dashed var(--accent);background:transparent;color:var(--accent);'>"+(allChecked?"❌ Batal Pilih Semua":"✅ Pilih Semua ("+shown.length+" grup)")+"</button>";
+    selAllEl.style.display = "block";
   } else {
-    body.innerHTML = validGroups.map(g => {
+    selAllEl.innerHTML = ""; selAllEl.style.display = "none";
+  }
+
+  // Render list grup
+  if (!shown.length) {
+    body.innerHTML = "<p style='text-align:center;color:var(--text-3);font-size:13px;padding:20px;'>Tidak ada grup di kategori ini.</p>";
+  } else {
+    body.innerHTML = shown.map(g => {
       const isChecked = selected.includes(g.id);
       return "<label style='display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;'>" +
-        "<input type='checkbox' value='"+g.id+"' "+(isChecked?"checked":"")+" style='width:18px;height:18px;accent-color:var(--accent);'>" +
-        "<div><p style='margin:0;font-size:14px;font-weight:600;color:var(--text-1,var(--text));'>"+esc(g.name)+"</p>" +
-        "<p style='margin:0;font-size:11px;color:var(--text-3);'>📌 "+esc(g.topics[0].name)+"</p></div>" +
+        "<input type='checkbox' value='"+g.id+"' "+(isChecked?"checked":"")+" onchange='onGrupCheck(this)' style='width:18px;height:18px;accent-color:var(--accent);'>" +
+        "<div style='flex:1;'><p style='margin:0;font-size:14px;font-weight:600;color:var(--text);'>"+esc(g.name)+"</p>" +
+        "<p style='margin:0;font-size:11px;color:var(--text-3);'>📌 "+esc(g.topics[0].name)+(g.category?" · "+esc(g.category):"")+"</p></div>" +
         "</label>";
     }).join("");
   }
-  document.getElementById("grupSheet").style.display = "flex";
+}
+
+function switchGrupTab(tab) { activeGrupTab = tab; renderGrupSheet(); }
+
+function onGrupCheck(chk) {
+  const pid = window._currentGrupPid;
+  if (!selectedGrupsMap[pid]) selectedGrupsMap[pid] = [];
+  const arr = selectedGrupsMap[pid];
+  if (chk.checked) { if (!arr.includes(chk.value)) arr.push(chk.value); }
+  else { selectedGrupsMap[pid] = arr.filter(id => id !== chk.value); }
+  renderGrupSheet(); // update tombol pilih semua state
+}
+
+function toggleSelectAllGrup() {
+  const pid = window._currentGrupPid;
+  const validGroups = GROUPS.filter(g => g.topics && g.topics.length > 0);
+  let shown = validGroups;
+  if (activeGrupTab === "__uncat__") shown = validGroups.filter(g => !g.category || !CATEGORIES.includes(g.category));
+  else if (activeGrupTab !== "__all__") shown = validGroups.filter(g => g.category === activeGrupTab);
+
+  if (!selectedGrupsMap[pid]) selectedGrupsMap[pid] = [];
+  const arr = selectedGrupsMap[pid];
+  const allChecked = shown.every(g => arr.includes(g.id));
+
+  if (allChecked) {
+    // Batal pilih semua di kategori ini
+    selectedGrupsMap[pid] = arr.filter(id => !shown.some(g => g.id === id));
+  } else {
+    shown.forEach(g => { if (!arr.includes(g.id)) arr.push(g.id); });
+  }
+  renderGrupSheet();
 }
 
 function confirmGrupSelection() {
   const pid = window._currentGrupPid;
   if (!pid) return;
-  const checks = document.querySelectorAll("#grupSheetBody input[type=checkbox]:checked");
-  const ids = [...checks].map(c => c.value);
-  selectedGrupsMap[pid] = ids;
+  const ids = selectedGrupsMap[pid] || [];
   document.querySelectorAll("#grpLabelTxt-"+pid).forEach(el => {
-    if (!ids.length) { el.textContent = "— Pilih grup —"; el.parentElement.style.color="var(--text-3)"; }
+    if (!ids.length) { el.textContent = "— Pilih grup —"; el.parentElement.style.color = "var(--text-3)"; }
     else {
       const names = ids.map(id => GROUPS.find(g=>g.id===id)?.name||"").filter(Boolean);
-      el.textContent = names.join(", "); el.parentElement.style.color="var(--accent)";
+      el.textContent = names.length > 2 ? names.length+" grup dipilih" : names.join(", ");
+      el.parentElement.style.color = "var(--accent)";
     }
   });
   document.getElementById("grupSheet").style.display = "none";
@@ -1498,7 +1685,7 @@ async function sendToTelegram(pid) {
 // ================================================================
 // GROUP MODAL
 // ================================================================
-function openGroupModal()  { renderGroupSidebar(); document.getElementById("groupModal").classList.remove("hidden"); switchMTab("groups"); }
+function openGroupModal()  { renderGroupSidebar(); const tt=document.getElementById("topicTabs"); if(tt&&GROUPS.length){ tt.classList.remove("hidden"); tt.style.display="flex"; } document.getElementById("groupModal").classList.remove("hidden"); switchMTab("groups"); }
 function closeGroupModal() { document.getElementById("groupModal").classList.add("hidden"); renderProducts(); }
 function switchMTab(tab) {
   document.querySelectorAll(".grp-tab-pri").forEach(b => b.classList.toggle("active", b.dataset.mtab===tab));
@@ -1566,12 +1753,13 @@ function deleteActiveGroup() {
   showToast("🗑️ Grup dihapus.");
 }
 function switchTopicTab(tab) {
-  ["list","create","manual","fetch"].forEach(t=>{
+  ["list","create","manual","fetch","massal"].forEach(t=>{
     document.getElementById("panel"+t[0].toUpperCase()+t.slice(1)).classList.toggle("hidden",t!==tab);
     document.getElementById("tab"+t[0].toUpperCase()+t.slice(1)).classList.toggle("active",t===tab);
   });
   if(tab==="list") renderTopicList();
   if(tab==="create") updateBulkPreview();
+  if(tab==="massal"){ renderMassalGroups(); updateMassalPreview(); }
 }
 function renderTopicList() {
   const g=GROUPS.find(x=>x.id===activeGroupId);
@@ -1647,6 +1835,85 @@ async function startBulkCreate() {
   showToast("✅ "+success+" topik dibuat!");
 }
 function stopBulkCreate(){bulkShouldStop=true;}
+
+// ================================================================
+// MASSAL LINTAS GRUP
+// ================================================================
+let massalShouldStop = false;
+
+function renderMassalGroups() {
+  const cont = document.getElementById("massalGroupList");
+  if (!cont) return;
+  if (!GROUPS.length) { cont.innerHTML = "<p style='font-size:11px;color:var(--text-3);text-align:center;padding:12px'>Belum ada grup.</p>"; return; }
+  cont.innerHTML = GROUPS.map(g =>
+    "<label style='display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer'>" +
+      "<input type='checkbox' class='massal-chk' value='"+g.id+"' onchange='updateMassalPreview()' style='width:15px;height:15px;accent-color:var(--accent)'>" +
+      "<span style='font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>"+esc(g.name)+"</span>" +
+      "<span style='font-size:10px;color:var(--text-3)'>"+(g.topics?.length||0)+" topik"+(g.category?" · "+esc(g.category):"")+"</span>" +
+    "</label>").join("");
+}
+
+function updateMassalPreview() {
+  const prefix = document.getElementById("massalPrefix")?.value || "";
+  const from = parseInt(document.getElementById("massalFrom")?.value) || 1;
+  const to = parseInt(document.getElementById("massalTo")?.value) || 10;
+  const nGrup = document.querySelectorAll(".massal-chk:checked").length;
+  const total = Math.max(to - from + 1, 0);
+  const el = document.getElementById("massalPreview");
+  if (el) el.textContent = '"'+prefix+from+'" ... "'+prefix+to+'" ('+total+' topik × '+nGrup+' grup = '+(total*nGrup)+' total)';
+}
+
+async function startMassalCreate() {
+  if (!BOT_TOKEN) return showToast("⚙️ Isi Bot Token dulu!","warn");
+  const gids = [...document.querySelectorAll(".massal-chk:checked")].map(c => c.value);
+  if (!gids.length) return showToast("⚠️ Pilih minimal 1 grup!","warn");
+  const prefix = document.getElementById("massalPrefix").value;
+  const from = parseInt(document.getElementById("massalFrom").value);
+  const to = parseInt(document.getElementById("massalTo").value);
+  let delay = parseFloat(document.getElementById("massalDelay").value) * 1000;
+  if (isNaN(delay) || delay < 1500) delay = 1500;
+  if (isNaN(from) || isNaN(to) || from > to) return showToast("⚠️ Angka tidak valid!","warn");
+  const perGrup = to - from + 1;
+  const grandTotal = perGrup * gids.length;
+  if (grandTotal > 300) return showToast("⚠️ Max 300 total!","warn");
+  if (!confirm("Buat "+perGrup+" topik di "+gids.length+" grup (total "+grandTotal+")?")) return;
+
+  massalShouldStop = false;
+  const btn = document.getElementById("massalBtn"), stopBtn = document.getElementById("massalStopBtn");
+  const progSec = document.getElementById("massalProgressSection"), progBar = document.getElementById("massalProgressBar"), progText = document.getElementById("massalProgressText");
+  const logSec = document.getElementById("massalLog"), logList = document.getElementById("massalLogList");
+  btn.disabled = true; btn.innerHTML = "⏳ Membuat...";
+  stopBtn.classList.remove("hidden"); progSec.classList.remove("hidden"); logSec.classList.remove("hidden"); logList.innerHTML = "";
+
+  let done = 0, success = 0, failed = 0;
+  outer:
+  for (const gid of gids) {
+    const g = GROUPS.find(x => x.id === gid);
+    if (!g) continue;
+    addLog(logList, "📁 "+g.name, "wait");
+    for (let i = from; i <= to; i++) {
+      if (massalShouldStop) { addLog(logList, "⏹ Stop.", "err"); break outer; }
+      const topicName = prefix + i;
+      if (g.topics.find(t => t.name === topicName)) { done++; updateProgress(progBar, progText, done, grandTotal); continue; }
+      addLog(logList, "⏳ "+g.name+" → \""+topicName+"\"...", "wait");
+      try {
+        const res = await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/createForumTopic", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ chat_id: g.chatId, name: topicName }) });
+        const data = await res.json();
+        if (res.ok && data.ok) { g.topics.push({ name: topicName, threadId: String(data.result.message_thread_id) }); saveGroups(); updateLastLog(logList, "✅ "+g.name+" → \""+topicName+"\"", "ok"); success++; }
+        else { updateLastLog(logList, "❌ "+g.name+": "+data.description, "err"); failed++; if (data.description?.includes("flood") || data.description?.includes("Too Many")) { addLog(logList, "🚫 Flood! Jeda 30 detik...", "err"); await sleep(30000); } }
+      } catch(err) { updateLastLog(logList, "❌ "+err.message, "err"); failed++; }
+      done++; updateProgress(progBar, progText, done, grandTotal);
+      renderGroupSidebar();
+      if (!massalShouldStop) await sleep(delay);
+    }
+  }
+  btn.disabled = false; btn.innerHTML = "🚀 Mulai"; stopBtn.classList.add("hidden");
+  addLog(logList, "🏁 "+success+" berhasil, "+failed+" gagal", "ok");
+  renderMassalGroups(); updateMassalPreview();
+  showToast("✅ "+success+" topik dibuat di "+gids.length+" grup!");
+}
+
+function stopMassalCreate(){ massalShouldStop = true; }
 function addLog(c,msg,type){const d=document.createElement("div");d.className="bulk-log-item "+type;d.textContent=msg;c.appendChild(d);c.parentElement.scrollTop=c.parentElement.scrollHeight;}
 function updateLastLog(c,msg,type){const l=c.lastElementChild;if(l){l.textContent=msg;l.className="bulk-log-item "+type;}}
 function updateProgress(bar,text,done,total){bar.style.width=Math.round(done/total*100)+"%";text.textContent=done+"/"+total;}
@@ -2648,15 +2915,17 @@ function closeAddSheet() {
 </div>`;
   document.body.insertAdjacentHTML('beforeend', pinHtml);
 
-  // Grup Sheet untuk pilih grup tujuan kirim
+  // Grup Sheet dengan tab kategori
   const grupSheetHtml = `
 <div id="grupSheet" style="position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:75vh;display:flex;flex-direction:column;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 8px;">
       <div><h3 style="font-weight:700;color:var(--text);font-size:15px;margin:0;">📤 Pilih Grup Tujuan</h3>
       <p style="font-size:11px;color:var(--text-3);margin:4px 0 0;">Otomatis kirim ke topik pertama tiap grup</p></div>
       <button onclick="document.getElementById('grupSheet').style.display='none'" style="color:var(--text-3);font-size:20px;background:none;border:none;">✕</button>
     </div>
+    <div id="grupSheetTabs" style="display:flex;gap:6px;overflow-x:auto;padding:8px 20px;border-bottom:1px solid var(--border);"></div>
+    <div id="grupSheetSelAll" style="padding:10px 16px 0;display:none;"></div>
     <div id="grupSheetBody" style="flex:1;overflow-y:auto;"></div>
     <div style="padding:16px;border-top:1px solid var(--border);">
       <button onclick="confirmGrupSelection()" style="width:100%;padding:14px;border-radius:14px;background:var(--accent);color:white;font-size:14px;font-weight:700;border:none;">✅ Konfirmasi Pilihan</button>
@@ -2723,7 +2992,7 @@ function lbKeyHandler(e) {
 // ================================================================
 (async()=>{
   await initDB();
-  loadConfig(); await loadGroups(); loadLists();
+  loadConfig(); await loadGroups(); await loadCategoriesFromSupabase(); loadLists();
   const savedKey = loadSupabaseConfig();
   if(savedKey) document.getElementById("supaKey").value = savedKey;
 
