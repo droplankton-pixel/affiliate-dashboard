@@ -633,7 +633,6 @@
           <button onclick="switchTopicTab('list')"   id="tabList"   class="tab-btn active">📋 Topik</button>
           <button onclick="switchTopicTab('create')" id="tabCreate" class="tab-btn">✨ Auto</button>
           <button onclick="switchTopicTab('manual')" id="tabManual" class="tab-btn">✏️ Manual</button>
-          <button onclick="switchTopicTab('fetch')"  id="tabFetch"  class="tab-btn">🔄 Fetch</button>
           <button onclick="switchTopicTab('massal')" id="tabMassal" class="tab-btn">🌐 Massal</button>
         </div>
 
@@ -680,13 +679,6 @@
             <input type="text" id="newTopicId" placeholder="Thread ID" class="field-input" style="width:96px"/>
           </div>
           <button onclick="addTopicManual()" class="btn-primary">+ Tambah</button>
-        </div>
-
-        <div id="panelFetch" class="hidden">
-          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:8px 12px;margin-bottom:10px"><p style="font-size:11px;color:var(--warn);margin:0">⚠️ Kirim pesan di topik dulu sebelum fetch</p></div>
-          <button onclick="fetchTopicsForGroup()" id="fetchBtn" class="btn-primary" style="background:linear-gradient(135deg,var(--success),#047857);margin-bottom:10px">🔄 Fetch Topik</button>
-          <div id="fetchResults" style="max-height:240px;overflow:auto"></div>
-          <button onclick="addSelectedTopics()" id="addSelectedBtn" class="hidden btn-primary" style="margin-top:10px">✅ Tambahkan Terpilih</button>
         </div>
 
         <div id="panelMassal" class="hidden">
@@ -850,8 +842,6 @@ let GROUPS    = [];
 let LISTS     = [];
 let activeListId   = null;
 let activeGroupId  = null;
-let fetchedTopics  = [];
-let selectedFetched = new Set();
 let bulkShouldStop  = false;
 let imageSlots = [null, null, null];
 
@@ -1058,6 +1048,13 @@ function openManageGroupsPanel() {
     body.appendChild(catInfo);
   }
 
+  if (GROUPS.length) {
+    const note = document.createElement("div");
+    note.style.cssText = "background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:10px 12px;margin-bottom:4px;";
+    note.innerHTML = "<p style='font-size:11px;color:#92400e;margin:0;line-height:1.5'>🔢 <b>Nomor topik terakhir</b> — isi sekali sesuai angka topik paling baru di Telegram. Setelah itu dashboard nyatat sendiri tiap lo bikin topik, dan kolom \"Dari\" di Auto-Buat / Massal otomatis lanjut dari angka ini.</p>";
+    body.appendChild(note);
+  }
+
   if (!GROUPS.length) {
     body.innerHTML += "<p style='font-size:12px;color:var(--text-3);text-align:center;padding:16px;'>Belum ada grup.</p>";
   }
@@ -1069,10 +1066,14 @@ function openManageGroupsPanel() {
     row.innerHTML =
       "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;'>" +
         "<div><p style='font-size:13px;font-weight:600;color:var(--text);margin:0;'>" + g.name + "</p>" +
-        "<p style='font-size:11px;color:var(--text-3);margin:0;'>" + g.chatId + " · " + (g.topics?.length||0) + " topik</p></div>" +
+        "<p style='font-size:11px;color:var(--text-3);margin:0;'>" + g.chatId + " · " + (g.topics?.length||0) + " topik di antrian</p></div>" +
         "<button onclick=\"confirmDeleteGroup('"+g.id+"')\" style='font-size:11px;color:#ef4444;border:1px solid #7f1d1d;border-radius:8px;padding:4px 10px;background:transparent;'>🗑️</button>" +
       "</div>" +
-      "<select onchange=\"setGroupCategory('"+g.id+"', this.value)\" style='width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);'>" + catOpts + "</select>";
+      "<select onchange=\"setGroupCategory('"+g.id+"', this.value)\" style='width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);margin-bottom:8px;'>" + catOpts + "</select>" +
+      "<div style='display:flex;align-items:center;gap:8px;'>" +
+        "<span style='flex:1;font-size:11px;color:var(--text-3)'>Nomor topik terakhir di grup ini</span>" +
+        "<input type='number' min='0' value='"+getLastTopicNum(g)+"' onchange=\"setLastTopicNum('"+g.id+"', this.value)\" style='width:76px;text-align:center;background:var(--surface);border:1px solid #fcd34d;border-radius:8px;padding:5px 6px;font-size:12px;font-weight:700;color:#d97706;'/>" +
+      "</div>";
     body.appendChild(row);
   });
   document.getElementById("manageGroups").style.display = "flex";
@@ -1744,6 +1745,69 @@ function moveGroup(idx, dir) {
   saveGroups(); renderGroupSidebar();
 }
 
+// ================================================================
+// NOMOR TOPIK TERAKHIR PER GRUP
+// ================================================================
+// Kenapa disimpan terpisah dari g.topics: g.topics itu ANTRIAN — isinya
+// dihapus setiap topik kepakai kirim. Jadi g.topics tidak bisa dipakai untuk
+// tahu "grup ini sudah sampai nomor berapa". g.lastTopicNum ingat selamanya.
+function getLastTopicNum(g) {
+  if (!g) return 0;
+  const tersimpan = parseInt(g.lastTopicNum) || 0;
+  // Ikut lihat antrian yang masih ada — siapa tahu lebih tinggi dari catatan.
+  // Ini juga yang bikin grup lama otomatis kebaca tanpa perlu setup manual.
+  let dariAntrian = 0;
+  (g.topics || []).forEach(t => {
+    const s = String(t.name || "").trim();
+    if (/^\d+$/.test(s)) { const n = parseInt(s,10); if (n > dariAntrian) dariAntrian = n; }
+  });
+  return Math.max(tersimpan, dariAntrian);
+}
+
+// Dipanggil setiap topik berhasil dibuat. Nama non-angka diabaikan.
+function catatNomorTopik(g, topicName) {
+  const s = String(topicName || "").trim();
+  if (!/^\d+$/.test(s)) return;
+  const n = parseInt(s,10);
+  if (n > (parseInt(g.lastTopicNum) || 0)) g.lastTopicNum = n;
+}
+
+// Dipakai panel Kelola Grup buat setel angka awal sekali per grup
+function setLastTopicNum(gid, val) {
+  const g = GROUPS.find(x=>x.id===gid); if(!g) return;
+  const n = parseInt(val);
+  if (isNaN(n) || n < 0) return showToast("⚠️ Isi angka, minimal 0!","warn");
+  g.lastTopicNum = n;
+  saveGroups(); renderGroupSidebar();
+  showToast("✅ "+g.name+" → nomor terakhir "+n);
+}
+
+// Isi kolom "Dari" dengan nomor berikutnya dari grup aktif
+function autoIsiBulkFrom() {
+  const g = GROUPS.find(x=>x.id===activeGroupId); if(!g) return;
+  const fromEl = document.getElementById("bulkFrom"), toEl = document.getElementById("bulkTo");
+  if(!fromEl) return;
+  const next = getLastTopicNum(g) + 1;
+  fromEl.value = next;
+  if(toEl && (parseInt(toEl.value)||0) < next) toEl.value = next + 9;
+  updateBulkPreview();
+}
+
+// Massal: pakai nomor tertinggi di antara grup yang dicentang, biar nomornya
+// seragam lintas grup dan tidak dobel di grup manapun.
+function onMassalGroupToggle() {
+  const gids = [...document.querySelectorAll(".massal-chk:checked")].map(c=>c.value);
+  const fromEl = document.getElementById("massalFrom"), toEl = document.getElementById("massalTo");
+  if(gids.length && fromEl) {
+    let tertinggi = 0;
+    gids.forEach(id => { const g = GROUPS.find(x=>x.id===id); const n = getLastTopicNum(g); if(n>tertinggi) tertinggi=n; });
+    const next = tertinggi + 1;
+    fromEl.value = next;
+    if(toEl && (parseInt(toEl.value)||0) < next) toEl.value = next + 9;
+  }
+  updateMassalPreview();
+}
+
 function renderGroupSidebar() {
   const sb=document.getElementById("groupSidebar");
   sb.innerHTML="";
@@ -1756,7 +1820,7 @@ function renderGroupSidebar() {
     div.innerHTML =
       "<div style=\"flex:1;min-width:0;\" onclick=\"selectGroup('"+g.id+"');switchMTab('topics');\">" +
         "<p style=\"font-size:13px;font-weight:700;color:var(--text);margin:0\">"+esc(g.name)+"</p>" +
-        "<p style=\"font-size:11px;color:var(--text-3);margin:3px 0 0\">"+esc(g.chatId)+" · "+g.topics.length+" topik</p>" +
+        "<p style=\"font-size:11px;color:var(--text-3);margin:3px 0 0\">"+g.topics.length+" topik · terakhir: <span style=\"color:#d97706;font-weight:700\">"+(getLastTopicNum(g)||"—")+"</span></p>" +
       "</div>" +
       "<div style=\"display:flex;flex-direction:column;gap:2px;flex-shrink:0;\">" +
         "<button onclick=\"event.stopPropagation();moveGroup("+idx+",-1)\" style=\"background:var(--border);border:none;color:"+(idx===0?"var(--text-3)":"var(--text-2)")+";border-radius:6px;width:24px;height:24px;font-size:12px;cursor:"+(idx===0?"not-allowed":"pointer")+";line-height:1;\" "+(idx===0?"disabled":"")+">↑</button>" +
@@ -1777,10 +1841,7 @@ function selectGroup(gid) {
   const _tl = document.getElementById("topicListContainer"); if(_tl) _tl.classList.remove("hidden");
   const _tp = document.getElementById("topicsPriBtn"); if(_tp){ _tp.disabled=false; _tp.style.opacity=1; }
   switchTopicTab("list"); renderGroupSidebar(); renderTopicList();
-  fetchedTopics=[]; selectedFetched.clear();
-  const _fr = document.getElementById("fetchResults"); if(_fr) _fr.innerHTML="";
-  const _ab = document.getElementById("addSelectedBtn"); if(_ab) _ab.classList.add("hidden");
-  updateBulkPreview();
+  autoIsiBulkFrom();
 }
 function deleteActiveGroup() {
   const g=GROUPS.find(x=>x.id===activeGroupId);
@@ -1798,13 +1859,15 @@ function deleteActiveGroup() {
   showToast("🗑️ Grup dihapus.");
 }
 function switchTopicTab(tab) {
-  ["list","create","manual","fetch","massal"].forEach(t=>{
-    document.getElementById("panel"+t[0].toUpperCase()+t.slice(1)).classList.toggle("hidden",t!==tab);
-    document.getElementById("tab"+t[0].toUpperCase()+t.slice(1)).classList.toggle("active",t===tab);
+  ["list","create","manual","massal"].forEach(t=>{
+    const panel=document.getElementById("panel"+t[0].toUpperCase()+t.slice(1));
+    const btn=document.getElementById("tab"+t[0].toUpperCase()+t.slice(1));
+    if(panel) panel.classList.toggle("hidden",t!==tab);
+    if(btn) btn.classList.toggle("active",t===tab);
   });
   if(tab==="list") renderTopicList();
-  if(tab==="create") updateBulkPreview();
-  if(tab==="massal"){ renderMassalGroups(); updateMassalPreview(); }
+  if(tab==="create") autoIsiBulkFrom();
+  if(tab==="massal"){ renderMassalGroups(); onMassalGroupToggle(); }
 }
 function renderTopicList() {
   const g=GROUPS.find(x=>x.id===activeGroupId);
@@ -1864,12 +1927,15 @@ async function startBulkCreate() {
   for(let i=from;i<=to;i++){
     if(bulkShouldStop){addLog(logList,"⏹ Stop di angka "+i,"err");break;}
     const topicName=prefix+i;
-    if(g.topics.find(t=>t.name===topicName)){addLog(logList,"⏭ Skip \""+topicName+"\"","wait");done++;updateProgress(progBar,progText,done,total);continue;}
+    // Skip kalau masih di antrian ATAU nomornya sudah pernah dibuat (anti dobel)
+    const nomorIni = /^\d+$/.test(String(topicName).trim()) ? parseInt(String(topicName).trim(),10) : null;
+    if(g.topics.find(t=>t.name===topicName)){addLog(logList,"⏭ Skip \""+topicName+"\" — masih di antrian","wait");done++;updateProgress(progBar,progText,done,total);continue;}
+    if(nomorIni!==null && nomorIni<=getLastTopicNum(g)){addLog(logList,"⏭ Skip \""+topicName+"\" — udah pernah dibikin","wait");done++;updateProgress(progBar,progText,done,total);continue;}
     addLog(logList,"⏳ \""+topicName+"\"...","wait");
     try {
       const res=await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/createForumTopic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:g.chatId,name:topicName})});
       const data=await res.json();
-      if(res.ok&&data.ok){g.topics.push({name:topicName,threadId:String(data.result.message_thread_id)});saveGroups();updateLastLog(logList,"✅ \""+topicName+"\"","ok");success++;}
+      if(res.ok&&data.ok){g.topics.push({name:topicName,threadId:String(data.result.message_thread_id)});catatNomorTopik(g,topicName);saveGroups();updateLastLog(logList,"✅ \""+topicName+"\"","ok");success++;}
       else{updateLastLog(logList,"❌ \""+topicName+"\": "+data.description,"err");failed++;if(data.description?.includes("flood")||data.description?.includes("Too Many")){addLog(logList,"🚫 Flood! Stop.","err");break;}}
     }catch(err){updateLastLog(logList,"❌ \""+topicName+"\": "+err.message,"err");failed++;}
     done++; updateProgress(progBar,progText,done,total); renderTopicList(); renderGroupSidebar();
@@ -1892,9 +1958,9 @@ function renderMassalGroups() {
   if (!GROUPS.length) { cont.innerHTML = "<p style='font-size:11px;color:var(--text-3);text-align:center;padding:12px'>Belum ada grup.</p>"; return; }
   cont.innerHTML = GROUPS.map(g =>
     "<label style='display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer'>" +
-      "<input type='checkbox' class='massal-chk' value='"+g.id+"' onchange='updateMassalPreview()' style='width:15px;height:15px;accent-color:var(--accent)'>" +
+      "<input type='checkbox' class='massal-chk' value='"+g.id+"' onchange='onMassalGroupToggle()' style='width:15px;height:15px;accent-color:var(--accent)'>" +
       "<span style='font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>"+esc(g.name)+"</span>" +
-      "<span style='font-size:10px;color:var(--text-3)'>"+(g.topics?.length||0)+" topik"+(g.category?" · "+esc(g.category):"")+"</span>" +
+      "<span style='font-size:10px;color:var(--text-3)'>terakhir: <span style='color:#d97706;font-weight:700'>"+(getLastTopicNum(g)||"—")+"</span>"+(g.category?" · "+esc(g.category):"")+"</span>" +
     "</label>").join("");
 }
 
@@ -1939,12 +2005,15 @@ async function startMassalCreate() {
     for (let i = from; i <= to; i++) {
       if (massalShouldStop) { addLog(logList, "⏹ Stop.", "err"); break outer; }
       const topicName = prefix + i;
-      if (g.topics.find(t => t.name === topicName)) { done++; updateProgress(progBar, progText, done, grandTotal); continue; }
+      // Skip kalau masih di antrian ATAU nomornya sudah pernah dibuat di grup ini (anti dobel)
+      const nomorIni = /^\d+$/.test(String(topicName).trim()) ? parseInt(String(topicName).trim(),10) : null;
+      if (g.topics.find(t => t.name === topicName)) { addLog(logList, "⏭ "+g.name+" → \""+topicName+"\" masih di antrian", "wait"); done++; updateProgress(progBar, progText, done, grandTotal); continue; }
+      if (nomorIni !== null && nomorIni <= getLastTopicNum(g)) { addLog(logList, "⏭ "+g.name+" → \""+topicName+"\" udah pernah dibikin", "wait"); done++; updateProgress(progBar, progText, done, grandTotal); continue; }
       addLog(logList, "⏳ "+g.name+" → \""+topicName+"\"...", "wait");
       try {
         const res = await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/createForumTopic", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ chat_id: g.chatId, name: topicName }) });
         const data = await res.json();
-        if (res.ok && data.ok) { g.topics.push({ name: topicName, threadId: String(data.result.message_thread_id) }); saveGroups(); updateLastLog(logList, "✅ "+g.name+" → \""+topicName+"\"", "ok"); success++; }
+        if (res.ok && data.ok) { g.topics.push({ name: topicName, threadId: String(data.result.message_thread_id) }); catatNomorTopik(g, topicName); saveGroups(); updateLastLog(logList, "✅ "+g.name+" → \""+topicName+"\"", "ok"); success++; }
         else { updateLastLog(logList, "❌ "+g.name+": "+data.description, "err"); failed++; if (data.description?.includes("flood") || data.description?.includes("Too Many")) { addLog(logList, "🚫 Flood! Jeda 30 detik...", "err"); await sleep(30000); } }
       } catch(err) { updateLastLog(logList, "❌ "+err.message, "err"); failed++; }
       done++; updateProgress(progBar, progText, done, grandTotal);
@@ -1965,7 +2034,7 @@ function updateProgress(bar,text,done,total){bar.style.width=Math.round(done/tot
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 // ================================================================
-// MANUAL TOPIC & FETCH
+// MANUAL TOPIC
 // ================================================================
 function addTopicManual() {
   const g=GROUPS.find(x=>x.id===activeGroupId); if(!g) return showToast("⚠️ Pilih grup!","warn");
@@ -1973,72 +2042,9 @@ function addTopicManual() {
   const threadId=document.getElementById("newTopicId").value.trim();
   if(!name||!threadId) return showToast("⚠️ Nama & Thread ID wajib!","warn");
   if(g.topics.find(t=>t.threadId===threadId)) return showToast("⚠️ Thread ID sudah ada!","warn");
-  g.topics.push({name,threadId}); saveGroups(); renderTopicList(); renderGroupSidebar();
+  g.topics.push({name,threadId}); catatNomorTopik(g,name); saveGroups(); renderTopicList(); renderGroupSidebar();
   document.getElementById("newTopicName").value=""; document.getElementById("newTopicId").value="";
   showToast("✅ \""+name+"\" ditambahkan!");
-}
-
-async function fetchTopicsForGroup() {
-  if(!BOT_TOKEN) return showToast("⚙️ Isi Bot Token!","warn");
-  const g=GROUPS.find(x=>x.id===activeGroupId); if(!g) return showToast("⚠️ Pilih grup!","warn");
-  const btn=document.getElementById("fetchBtn");
-  btn.disabled=true; btn.innerHTML="<span class=\"spinner\"></span> Fetching...";
-  try {
-    const res=await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/getUpdates?limit=100");
-    const data=await res.json(); if(!data.ok) throw new Error(data.description);
-    const topicMap=new Map();
-    for(const u of data.result){
-      const msg=u.message; if(!msg||!msg.message_thread_id) continue;
-      if(String(msg.chat?.id)!==String(g.chatId)) continue;
-      const tid=String(msg.message_thread_id); let name=tid;
-      if(msg.forum_topic_created) name=msg.forum_topic_created.name;
-      if(!topicMap.has(tid)) topicMap.set(tid,name);
-    }
-    fetchedTopics=[...topicMap.entries()].map(([threadId,name])=>({name,threadId}));
-    selectedFetched.clear(); renderFetchResults();
-    if(!fetchedTopics.length) showToast("⚠️ Tidak ada topik. Kirim pesan di topik dulu!","warn");
-    else showToast("✅ "+fetchedTopics.length+" topik ditemukan!");
-  }catch(err){showToast("❌ "+err.message,"error");}
-  finally{btn.disabled=false;btn.innerHTML="🔄 Fetch Topik";}
-}
-function renderFetchResults() {
-  const cont=document.getElementById("fetchResults"),addBtn=document.getElementById("addSelectedBtn");
-  const g=GROUPS.find(x=>x.id===activeGroupId);
-  cont.innerHTML="";
-  if(!fetchedTopics.length){cont.innerHTML="<p style=\"font-size:12px;color:var(--text-3);text-align:center;padding:12px\">Belum ada hasil.</p>";addBtn.classList.add("hidden");return;}
-  fetchedTopics.forEach((t,i)=>{
-    const already=g&&g.topics.find(x=>x.threadId===t.threadId);
-    const div=document.createElement("div");
-    div.className="fetch-item";
-    if(already) div.style.opacity="0.4";
-    if(already) {
-      div.innerHTML="<div style=\"display:flex;align-items:center;justify-content:space-between\"><div><p style=\"font-size:12px;font-weight:700;margin:0\">"+esc(t.name)+"</p><p style=\"font-size:10px;color:var(--text-3);margin:2px 0 0\">ID: "+esc(t.threadId)+"</p></div><span style=\"color:var(--success);font-size:12px\">✓ ada</span></div>";
-    } else {
-      div.innerHTML="<div style=\"display:flex;align-items:center;gap:8px\"><input type=\"checkbox\" id=\"chk-"+i+"\" onchange=\"toggleFetchSelect("+i+",this.checked)\" style=\"width:16px;height:16px;accent-color:var(--success)\"/><div style=\"flex:1\"><input type=\"text\" id=\"fname-"+i+"\" value=\""+esc(t.name)+"\" placeholder=\"Isi nama topik...\" class=\"field-input\" style=\"padding:6px 10px;font-size:12px;font-weight:600\"/><p style=\"font-size:10px;color:var(--text-3);margin:4px 0 0\">Thread ID: "+esc(t.threadId)+"</p></div></div>";
-    }
-    cont.appendChild(div);
-  });
-  addBtn.classList.add("hidden");
-}
-function toggleFetchSelect(i, checked) {
-  if(checked) selectedFetched.add(i); else selectedFetched.delete(i);
-  document.getElementById("addSelectedBtn").classList.toggle("hidden", selectedFetched.size===0);
-}
-function addSelectedTopics() {
-  const g=GROUPS.find(x=>x.id===activeGroupId); if(!g) return;
-  let added=0;
-  selectedFetched.forEach(i=>{
-    const t=fetchedTopics[i];
-    if(!g.topics.find(x=>x.threadId===t.threadId)){
-      const nameInput=document.getElementById("fname-"+i);
-      const name=nameInput?nameInput.value.trim()||t.threadId:t.threadId;
-      g.topics.push({name, threadId:t.threadId});
-      added++;
-    }
-  });
-  saveGroups(); renderTopicList(); renderFetchResults(); renderGroupSidebar();
-  selectedFetched.clear(); document.getElementById("addSelectedBtn").classList.add("hidden");
-  showToast("✅ "+added+" topik ditambahkan!");
 }
 
 // ================================================================
@@ -2515,7 +2521,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.27";
+const APP_VERSION = "2026.07.27-2";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
