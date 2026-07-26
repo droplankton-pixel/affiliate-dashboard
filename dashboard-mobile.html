@@ -491,7 +491,7 @@
         </div>
 
         <p style="text-align:center;font-size:10px;color:var(--text-3);margin-top:24px;letter-spacing:0.5px">
-          ⚡ U-deenCompeny · v1.0 mobile
+          ⚡ U-deenCompeny · mobile <span id="appVersion">—</span>
         </p>
 
       </div>
@@ -536,6 +536,10 @@
     <div>
       <label class="field-label">Link Affiliate</label>
       <input type="text" id="affiliateLink" class="field-input" placeholder="https://..."/>
+    </div>
+    <div>
+      <label class="field-label">🛒 Link Shopee (opsional)</label>
+      <input type="text" id="shopeeLink" class="field-input" placeholder="https://shopee.co.id/..."/>
     </div>
     <div>
       <label class="field-label">Simpan ke List</label>
@@ -758,6 +762,10 @@
       <div>
         <label class="field-label">Link Affiliate</label>
         <input type="text" id="editLink" class="field-input" placeholder="https://..."/>
+      </div>
+      <div>
+        <label class="field-label">🛒 Link Shopee (opsional)</label>
+        <input type="text" id="editShopee" class="field-input" placeholder="https://shopee.co.id/..."/>
       </div>
       <div>
         <label class="field-label">Foto (klik untuk ganti)</label>
@@ -1125,6 +1133,7 @@ async function selectList(id) {
 async function saveProduct() {
   const name = document.getElementById("productName").value.trim();
   const link = document.getElementById("affiliateLink").value.trim();
+  const shopeeLink = document.getElementById("shopeeLink").value.trim();
   const listId = document.getElementById("saveToList").value;
   if (!name)   return showToast("⚠️ Nama produk wajib!","warn");
   if (!link)   return showToast("⚠️ Link affiliate wajib!","warn");
@@ -1140,7 +1149,7 @@ async function saveProduct() {
         images.push({ imageData: await imageSlots[i].arrayBuffer(), imageType: imageSlots[i].type });
       }
     }
-    const record = { name, link, listId, createdAt: Date.now(),
+    const record = { name, link, shopeeLink, listId, createdAt: Date.now(),
       imageData: images[0].imageData, imageType: images[0].imageType,
       images: images
     };
@@ -1148,6 +1157,7 @@ async function saveProduct() {
     showToast("✅ Produk disimpan!");
     document.getElementById("productName").value="";
     document.getElementById("affiliateLink").value="";
+    document.getElementById("shopeeLink").value="";
     clearAllSlots();
     closeAddSheet();
     if (activeListId !== listId) { switchPage("produk"); await selectList(listId); }
@@ -1255,6 +1265,7 @@ function renderGrid(products, query) {
       "</div>"+
       "<div class=\"pcard-body\">"+
         "<div class=\"pcard-name\">"+displayName+"</div>"+
+        (p.shopeeLink ? "<div style=\"font-size:9px;color:#fb923c;background:#2a1205;border:1px solid #5a2a0a;border-radius:4px;padding:1px 5px;align-self:flex-start;width:fit-content;margin-bottom:3px;\">🛒 Shopee</div>" : "")+
         "<a href=\""+esc(p.link)+"\" target=\"_blank\" class=\"pcard-link\">"+esc(p.link)+"</a>"+
         "<div id=\"grpLabel-"+p.id+"\" onclick=\"openGrupSheet("+p.id+")\" style=\"width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:11px;color:var(--text-3);margin-bottom:4px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;\">"+ 
           "<span id=\"grpLabelTxt-"+p.id+"\">— Pilih grup —</span><span>▾</span>"+
@@ -1548,6 +1559,27 @@ async function fetchWithRetry(url, maxRetry, delay) {
 // ================================================================
 // KIRIM KE TELEGRAM
 // ================================================================
+// Kirim link Shopee sebagai pesan teks terpisah (tanpa foto, tanpa preview)
+// Tanpa parse_mode: URL Shopee sering ada karakter _ * [ yang bikin Markdown error 400
+async function sendShopeeMessage(chatId, threadId, shopeeLink) {
+  const body = {
+    chat_id: chatId,
+    text: "🛒 Shopee: " + shopeeLink,
+    link_preview_options: { is_disabled: true },
+    disable_web_page_preview: true
+  };
+  if (threadId) body.message_thread_id = threadId;
+  try {
+    const r = await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/sendMessage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    return !!(r.ok && d.ok);
+  } catch(e) { return false; }
+}
+
 async function sendToTelegram(pid) {
   if (!BOT_TOKEN) return showToast("⚙️ Isi Bot Token dulu!","warn");
   if (!GROUPS.length) return showToast("🏘️ Tambah grup dulu!","warn");
@@ -1560,7 +1592,7 @@ async function sendToTelegram(pid) {
   const btns = document.querySelectorAll("#tgBtn-"+pid);
   btns.forEach(b=>{ b.disabled=true; b.innerHTML="<span class=\"spinner\"></span>"; });
 
-  let successCount = 0, failCount = 0;
+  let successCount = 0, failCount = 0, shopeeFailCount = 0;
 
   for (const target of targets) {
     const group = GROUPS.find(g => g.id === target.groupId);
@@ -1661,6 +1693,14 @@ async function sendToTelegram(pid) {
           }
         } catch(e) {}
 
+        // Pesan kedua: link Shopee berdiri sendiri (kalau produk punya)
+        // Jeda 300ms — sekali kirim jadi 2 request, biar tidak kena "Too Many Requests"
+        if (product.shopeeLink) {
+          await new Promise(r => setTimeout(r, 300));
+          const okShopee = await sendShopeeMessage(group.chatId, threadId, product.shopeeLink);
+          if (!okShopee) shopeeFailCount++;
+        }
+
         group.topics = group.topics.filter(t=>t.threadId!==threadId);
         saveGroups();
       } else {
@@ -1677,6 +1717,11 @@ async function sendToTelegram(pid) {
     showToast("⚠️ "+successCount+" berhasil, "+failCount+" gagal", "warn");
   } else {
     showToast("❌ Gagal kirim ke semua topik", "error");
+  }
+
+  // Notif terpisah — kegagalan link Shopee tidak menggagalkan kiriman utama
+  if (shopeeFailCount > 0) {
+    setTimeout(function(){ showToast("⚠️ "+shopeeFailCount+" link Shopee gagal terkirim","warn"); }, 1200);
   }
 
   btns.forEach(b=>{ b.disabled=false; b.innerHTML="✈️ Kirim"; });
@@ -2468,6 +2513,10 @@ function showToast(msg,type){
 // ================================================================
 // SUPABASE
 // ================================================================
+// Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
+// Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
+const APP_VERSION = "2026.07.27";
+
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
 
@@ -2511,6 +2560,7 @@ async function syncFromSupabase() {
         tgImgUrl: row.photo_url || "",
         tgImgUrl2: row.photo_url_2 || "",
         tgImgUrl3: row.photo_url_3 || "",
+        shopeeLink: row.shopee_link || "",
       };
       await dbAdd(record);
       newCount++;
@@ -2599,7 +2649,7 @@ async function exportToSupabase() {
           "Content-Type": "application/json", "Prefer": "return=representation"
         },
         body: JSON.stringify({
-          name: p.name, link: p.link || "", list_name: listName,
+          name: p.name, link: p.link || "", shopee_link: p.shopeeLink || null, list_name: listName,
           photo_url: photoUrl, photo_url_2: photoUrl2, photo_url_3: photoUrl3,
           created_at: new Date(p.createdAt || Date.now()).toISOString()
         })
@@ -2651,6 +2701,7 @@ async function openEditModal(pid) {
 
   document.getElementById("editName").value = product.name || "";
   document.getElementById("editLink").value = product.link || "";
+  document.getElementById("editShopee").value = product.shopeeLink || "";
 
   editOrigImgs = [];
   if(product.images && product.images.length > 0) {
@@ -2721,6 +2772,7 @@ async function saveEdit() {
   if(!editProductId) return;
   const newName = document.getElementById("editName").value.trim();
   const newLink = document.getElementById("editLink").value.trim();
+  const newShopee = document.getElementById("editShopee").value.trim();
   if(!newName) return showToast("⚠️ Nama tidak boleh kosong!","warn");
 
   const btn = document.getElementById("editSaveBtn");
@@ -2735,6 +2787,7 @@ async function saveEdit() {
 
     product.name = newName;
     if(newLink) product.link = newLink;
+    product.shopeeLink = newShopee; // tanpa if — biar bisa dikosongkan ulang
 
     const newImages = [];
     for(let i=0;i<3;i++) {
@@ -2768,7 +2821,7 @@ async function saveEdit() {
         await fetch(SUPA_URL+"/rest/v1/products?id=eq."+product.supabaseId, {
           method: "PATCH",
           headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newName, ...(newLink ? { link: newLink } : {}) })
+          body: JSON.stringify({ name: newName, shopee_link: newShopee || null, ...(newLink ? { link: newLink } : {}) })
         }).catch(()=>{});
       }
     }
@@ -2999,6 +3052,10 @@ function lbKeyHandler(e) {
   renderListTabs();
   if(LISTS.length){ activeListId=LISTS[0].id; renderListTabs(); await renderProducts(); }
   if(BOT_TOKEN) startAutoSync();
+
+  // Tampilkan penanda versi di halaman Setelan
+  const verEl = document.getElementById("appVersion");
+  if (verEl) verEl.textContent = "v" + APP_VERSION;
 
   if(savedKey) {
     startSupabaseRealtime();
