@@ -1150,7 +1150,7 @@ async function saveProduct() {
         images.push({ imageData: await imageSlots[i].arrayBuffer(), imageType: imageSlots[i].type });
       }
     }
-    const record = { name, link, shopeeLink, listId, createdAt: Date.now(),
+    const record = { name, link, shopeeLink, listId, createdAt: Date.now(), updatedAt: Date.now(),
       imageData: images[0].imageData, imageType: images[0].imageType,
       images: images
     };
@@ -2521,7 +2521,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.27-2";
+const APP_VERSION = "2026.07.27-3";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
@@ -2540,14 +2540,23 @@ async function syncFromSupabase() {
     const rows = await res.json();
     if (!rows.length) return;
 
-    let newCount = 0;
+    let newCount = 0, updatedCount = 0;
     for (const row of rows) {
       const existing = await new Promise(res2 => {
         const req = db.transaction("products","readonly").objectStore("products").getAll();
         req.onsuccess = () => res2(req.result.find(p => p.supabaseId === row.id));
         req.onerror = () => res2(null);
       });
-      if (existing) continue;
+
+      // Produk sudah ada di sini — tarik perubahan kalau baris server lebih baru.
+      // Yang paling baru menang, jadi edit tidak bisa ketimpa versi lama.
+      if (existing) {
+        const waktuServer = Date.parse(row.updated_at || row.created_at) || 0;
+        const waktuLokal  = existing.updatedAt || existing.createdAt || 0;
+        if (waktuServer <= waktuLokal) continue;
+        if (await terapkanBarisServer(existing, row)) updatedCount++;
+        continue;
+      }
 
       let listId = null;
       if (row.list_name) {
@@ -2572,12 +2581,47 @@ async function syncFromSupabase() {
       newCount++;
     }
 
-    if (newCount > 0) {
-      showToast("📥 "+newCount+" produk baru dari bot!");
+    if (newCount > 0 || updatedCount > 0) {
+      if (newCount > 0)     showToast("📥 "+newCount+" produk baru dari bot!");
+      if (updatedCount > 0) showToast("🔄 "+updatedCount+" produk diperbarui dari alat lain");
       renderListTabs();
       if (activeListId) await renderProducts();
     }
   } catch(e) {}
+}
+
+// Terapkan isi baris Supabase ke record lokal. Dipakai hanya kalau baris
+// server lebih baru dari salinan lokal. Balikan true kalau ada yang berubah.
+async function terapkanBarisServer(existing, row) {
+  const sebelum = JSON.stringify([existing.name, existing.link, existing.shopeeLink,
+                                  existing.tgImgUrl, existing.tgImgUrl2, existing.tgImgUrl3]);
+
+  if (row.name) existing.name = row.name;
+  if (row.link) existing.link = row.link;          // link tidak pernah dikosongkan dari UI
+  existing.shopeeLink = row.shopee_link || "";     // ini BOLEH dikosongkan dari UI
+  existing.updatedAt  = Date.parse(row.updated_at || row.created_at) || Date.now();
+
+  // Foto: HANYA diganti kalau baris server beneran punya foto. Tanpa pengaman
+  // ini, satu baris berfoto-kosong bisa mengosongkan foto produk di alat lain.
+  const urls = [row.photo_url, row.photo_url_2, row.photo_url_3]
+    .filter(u => u && String(u).trim());
+  if (urls.length) {
+    existing.images    = urls.map(u => ({ tgImgUrl: u }));
+    existing.tgImgUrl  = urls[0] || "";
+    existing.tgImgUrl2 = urls[1] || "";
+    existing.tgImgUrl3 = urls[2] || "";
+    delete existing.imageData;  // biar URL server yang dipakai, bukan blob lama
+    delete existing.imageType;
+  }
+
+  await new Promise((res, rej) => {
+    const req = db.transaction("products","readwrite").objectStore("products").put(existing);
+    req.onsuccess = () => res(); req.onerror = () => rej(req.error);
+  });
+
+  const sesudah = JSON.stringify([existing.name, existing.link, existing.shopeeLink,
+                                  existing.tgImgUrl, existing.tgImgUrl2, existing.tgImgUrl3]);
+  return sebelum !== sesudah;
 }
 
 let supaInterval = null;
@@ -2657,7 +2701,8 @@ async function exportToSupabase() {
         body: JSON.stringify({
           name: p.name, link: p.link || "", shopee_link: p.shopeeLink || null, list_name: listName,
           photo_url: photoUrl, photo_url_2: photoUrl2, photo_url_3: photoUrl3,
-          created_at: new Date(p.createdAt || Date.now()).toISOString()
+          created_at: new Date(p.createdAt || Date.now()).toISOString(),
+          updated_at: new Date(p.updatedAt || p.createdAt || Date.now()).toISOString()
         })
       });
 
@@ -2794,6 +2839,7 @@ async function saveEdit() {
     product.name = newName;
     if(newLink) product.link = newLink;
     product.shopeeLink = newShopee; // tanpa if — biar bisa dikosongkan ulang
+    product.updatedAt = Date.now(); // penanda waktu buat sinkronisasi antar-alat
 
     const newImages = [];
     for(let i=0;i<3;i++) {
@@ -2827,7 +2873,7 @@ async function saveEdit() {
         await fetch(SUPA_URL+"/rest/v1/products?id=eq."+product.supabaseId, {
           method: "PATCH",
           headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newName, shopee_link: newShopee || null, ...(newLink ? { link: newLink } : {}) })
+          body: JSON.stringify({ name: newName, shopee_link: newShopee || null, updated_at: new Date(product.updatedAt).toISOString(), ...(newLink ? { link: newLink } : {}) })
         }).catch(()=>{});
       }
     }
