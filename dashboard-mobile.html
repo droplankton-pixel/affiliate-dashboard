@@ -1593,12 +1593,15 @@ async function sendToTelegram(pid) {
   const btns = document.querySelectorAll("#tgBtn-"+pid);
   btns.forEach(b=>{ b.disabled=true; b.innerHTML="<span class=\"spinner\"></span>"; });
 
-  let successCount = 0, failCount = 0, shopeeFailCount = 0;
+  let successCount = 0, failCount = 0, shopeeFailCount = 0, shopeeYatimCount = 0;
 
   for (const target of targets) {
     const group = GROUPS.find(g => g.id === target.groupId);
     if (!group) { failCount++; continue; }
     const threadId = target.threadId;
+
+    // Dideklarasi di luar try supaya blok catch juga bisa membacanya
+    let shopeeTerkirim = false;
 
     try {
       let res;
@@ -1616,8 +1619,10 @@ async function sendToTelegram(pid) {
         if(product.tgImgUrl3) allPhotoSrcs.push({type:"url", url:product.tgImgUrl3});
       }
 
+      // Siapkan foto DULU sebelum kirim apapun: link Shopee dikirim duluan,
+      // jadi kita harus yakin fotonya siap — biar tidak ada link nyasar tanpa produk.
+      const resolvedBlobs = [];
       if(allPhotoSrcs.length > 0) {
-        const resolvedBlobs = [];
         for(const src of allPhotoSrcs) {
           if(src.type === "data") {
             resolvedBlobs.push(new Blob([src.data], {type: src.mime||"image/jpeg"}));
@@ -1628,7 +1633,22 @@ async function sendToTelegram(pid) {
             } catch(e) {}
           }
         }
+      }
 
+      const bisaKirimFoto = resolvedBlobs.length > 0
+        || (allPhotoSrcs.length === 0 && (product.tgFileId || product.imageData));
+      if(!bisaKirimFoto) { failCount++; continue; }
+
+      // PESAN 1: link Shopee berdiri sendiri, dikirim SEBELUM foto
+      if (product.shopeeLink) {
+        shopeeTerkirim = await sendShopeeMessage(group.chatId, threadId, product.shopeeLink);
+        if (!shopeeTerkirim) shopeeFailCount++;
+        // Jeda: sekali kirim jadi 2 request, biar tidak kena "Too Many Requests"
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      // PESAN 2: foto + nama + link TikTok
+      if(resolvedBlobs.length > 0) {
         if(resolvedBlobs.length > 1) {
           const fd = new FormData();
           fd.append("chat_id", group.chatId);
@@ -1650,8 +1670,6 @@ async function sendToTelegram(pid) {
           fd.append("caption", "*"+product.name+"*\n\n🔗 "+product.link);
           fd.append("parse_mode", "Markdown");
           res = await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/sendPhoto", {method:"POST", body:fd});
-        } else {
-          failCount++; continue;
         }
       } else if(product.tgFileId) {
         const body = { chat_id: group.chatId, message_thread_id: threadId, photo: product.tgFileId,
@@ -1694,20 +1712,17 @@ async function sendToTelegram(pid) {
           }
         } catch(e) {}
 
-        // Pesan kedua: link Shopee berdiri sendiri (kalau produk punya)
-        // Jeda 300ms — sekali kirim jadi 2 request, biar tidak kena "Too Many Requests"
-        if (product.shopeeLink) {
-          await new Promise(r => setTimeout(r, 300));
-          const okShopee = await sendShopeeMessage(group.chatId, threadId, product.shopeeLink);
-          if (!okShopee) shopeeFailCount++;
-        }
-
         group.topics = group.topics.filter(t=>t.threadId!==threadId);
         saveGroups();
       } else {
         failCount++;
+        // Link Shopee sudah terlanjur terkirim tapi fotonya gagal — user perlu tahu
+        if (shopeeTerkirim) shopeeYatimCount++;
       }
-    } catch(err) { failCount++; }
+    } catch(err) {
+      failCount++;
+      if (shopeeTerkirim) shopeeYatimCount++;
+    }
   }
 
   await renderProducts();
@@ -1723,6 +1738,10 @@ async function sendToTelegram(pid) {
   // Notif terpisah — kegagalan link Shopee tidak menggagalkan kiriman utama
   if (shopeeFailCount > 0) {
     setTimeout(function(){ showToast("⚠️ "+shopeeFailCount+" link Shopee gagal terkirim","warn"); }, 1200);
+  }
+  // Link Shopee masuk tapi fotonya gagal — ada link nyasar di grup, perlu dicek manual
+  if (shopeeYatimCount > 0) {
+    setTimeout(function(){ showToast("🚨 "+shopeeYatimCount+" link Shopee terkirim TANPA foto — cek grupnya","error"); }, 2400);
   }
 
   btns.forEach(b=>{ b.disabled=false; b.innerHTML="✈️ Kirim"; });
@@ -2521,7 +2540,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.27-3";
+const APP_VERSION = "2026.07.27-4";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
