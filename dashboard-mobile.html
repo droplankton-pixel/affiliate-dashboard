@@ -428,6 +428,14 @@
               </div>
               <button onclick="exportToSupabase()" id="supaExportBtn" class="row-action">Push</button>
             </div>
+            <div class="settings-row">
+              <div class="icn">🖼️</div>
+              <div class="meta">
+                <div class="label">Pulihkan foto</div>
+                <div class="hint">Ambil ulang foto dari server buat produk yang fotonya hilang</div>
+              </div>
+              <button onclick="pulihkanFotoDariServer()" id="pulihkanBtn" class="row-action">Pulihkan</button>
+            </div>
           </div>
         </div>
 
@@ -1690,25 +1698,24 @@ async function sendToTelegram(pid) {
       if (res.ok && data.ok) {
         successCount++;
         try {
+          // Simpan file_id saja. JANGAN simpan URL api.telegram.org/file/... —
+          // URL itu cuma hidup ±1 jam, dan dulu menimpa URL Supabase Storage yang
+          // permanen. Itu penyebab foto "hilang" di alat setelah produk dikirim.
           const sentPhoto = data.result?.photo;
           if(sentPhoto && sentPhoto.length > 0 && !product.imageData) {
             const bigPhoto = sentPhoto[sentPhoto.length-1];
-            const fileRes = await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/getFile?file_id="+bigPhoto.file_id);
-            const fileData = await fileRes.json();
-            if(fileData.ok) {
-              const freshUrl = "https://api.telegram.org/file/bot"+BOT_TOKEN+"/"+fileData.result.file_path;
-              await new Promise((res2,rej2)=>{
-                const tx = db.transaction("products","readwrite");
-                const store = tx.objectStore("products");
-                const getReq = store.get(pid);
-                getReq.onsuccess = ()=>{
-                  const rec = getReq.result;
-                  rec.tgFileId = bigPhoto.file_id;
-                  rec.tgImgUrl = freshUrl;
-                  store.put(rec).onsuccess = ()=>res2();
-                };
-              });
-            }
+            await new Promise((res2)=>{
+              const tx = db.transaction("products","readwrite");
+              const store = tx.objectStore("products");
+              const getReq = store.get(pid);
+              getReq.onsuccess = ()=>{
+                const rec = getReq.result;
+                if(!rec) return res2();
+                rec.tgFileId = bigPhoto.file_id;
+                store.put(rec).onsuccess = ()=>res2();
+              };
+              getReq.onerror = ()=>res2();
+            });
           }
         } catch(e) {}
 
@@ -2540,12 +2547,74 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.27-4";
+const APP_VERSION = "2026.07.28";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
 
 function loadSupabaseConfig() { return localStorage.getItem(SUPA_ANON_KEY_KEY) || ""; }
+
+// Unggah satu foto ke Supabase Storage, balikin URL permanennya (null kalau gagal)
+async function unggahFotoKeServer(anonKey, blob, idProduk, urutan) {
+  try {
+    const path = "products/" + Date.now() + "_" + idProduk + "_" + urutan + ".jpg";
+    const res = await fetch(SUPA_URL + "/storage/v1/object/product-photos/" + path, {
+      method: "POST",
+      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey,
+                 "Content-Type": blob.type || "image/jpeg" },
+      body: blob
+    });
+    return res.ok ? SUPA_URL + "/storage/v1/object/public/product-photos/" + path : null;
+  } catch(e) { return null; }
+}
+
+// Pulihkan foto yang "hilang" di alat ini dengan membaca ulang alamat permanen
+// dari server. Ringan — tidak mengunggah apa pun, jadi aman dipakai di HP.
+async function pulihkanFotoDariServer() {
+  const anonKey = loadSupabaseConfig();
+  if (!anonKey) return showToast("⚙️ Isi kunci Supabase dulu di Setelan","warn");
+  const btn = document.getElementById("pulihkanBtn");
+  const teksAsli = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Memulihkan…"; }
+  try {
+    const res = await fetch(SUPA_URL + "/rest/v1/products?select=id,photo_url,photo_url_2,photo_url_3&limit=1000", {
+      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey }
+    });
+    if (!res.ok) throw new Error("server menolak permintaan");
+    const rows = await res.json();
+    const peta = new Map(rows.map(r => [r.id, r]));
+
+    const semua = await new Promise(ok => {
+      const q = db.transaction("products","readonly").objectStore("products").getAll();
+      q.onsuccess = () => ok(q.result || []); q.onerror = () => ok([]);
+    });
+
+    let pulih = 0;
+    for (const p of semua) {
+      if (!p.supabaseId) continue;
+      // Foto lokal masih ada -> tampil normal, tidak perlu diapa-apakan
+      if (p.imageData) continue;
+      const rusak = !p.tgImgUrl || String(p.tgImgUrl).includes("api.telegram.org");
+      if (!rusak) continue;
+      const row = peta.get(p.supabaseId); if (!row) continue;
+      const urls = [row.photo_url, row.photo_url_2, row.photo_url_3].filter(u => u && String(u).trim());
+      if (!urls.length) continue;
+      p.images = urls.map(u => ({ tgImgUrl: u }));
+      p.tgImgUrl = urls[0] || ""; p.tgImgUrl2 = urls[1] || ""; p.tgImgUrl3 = urls[2] || "";
+      await new Promise(ok => {
+        const q = db.transaction("products","readwrite").objectStore("products").put(p);
+        q.onsuccess = () => ok(); q.onerror = () => ok();
+      });
+      pulih++;
+    }
+    await renderProducts();
+    showToast(pulih ? "✅ "+pulih+" foto dipulihkan" : "✅ Semua foto sudah benar");
+  } catch(e) {
+    showToast("❌ Gagal memulihkan: " + e.message, "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = teksAsli || "Pulihkan foto"; }
+  }
+}
 function saveSupabaseConfig(key) { localStorage.setItem(SUPA_ANON_KEY_KEY, key); }
 
 async function syncFromSupabase() {
@@ -2889,10 +2958,28 @@ async function saveEdit() {
     if(product.supabaseId) {
       const anonKey = loadSupabaseConfig();
       if(anonKey) {
+        // Foto ikut naik ke server kalau ada slot yang diganti/dihapus. Tanpa ini,
+        // perubahan foto cuma nyangkut di alat ini — dan bisa ketimpa balik oleh
+        // foto lama waktu alat ini menarik data dari server.
+        let bodyFoto = {};
+        const adaUbahFoto = editSlots.some(s => (s instanceof Blob) || s === false);
+        if (adaUbahFoto) {
+          const urls = [];
+          for (let i = 0; i < Math.min(product.images.length, 3); i++) {
+            const img = product.images[i];
+            if (img && img.imageData) {
+              const blob = new Blob([img.imageData], { type: img.imageType || "image/jpeg" });
+              urls[i] = await unggahFotoKeServer(anonKey, blob, product.supabaseId, i);
+            } else if (img && img.tgImgUrl && !String(img.tgImgUrl).includes("api.telegram.org")) {
+              urls[i] = img.tgImgUrl;
+            } else urls[i] = null;
+          }
+          bodyFoto = { photo_url: urls[0]||null, photo_url_2: urls[1]||null, photo_url_3: urls[2]||null };
+        }
         await fetch(SUPA_URL+"/rest/v1/products?id=eq."+product.supabaseId, {
           method: "PATCH",
           headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newName, shopee_link: newShopee || null, updated_at: new Date(product.updatedAt).toISOString(), ...(newLink ? { link: newLink } : {}) })
+          body: JSON.stringify({ name: newName, shopee_link: newShopee || null, updated_at: new Date(product.updatedAt).toISOString(), ...bodyFoto, ...(newLink ? { link: newLink } : {}) })
         }).catch(()=>{});
       }
     }
