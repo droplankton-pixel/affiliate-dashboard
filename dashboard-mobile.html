@@ -84,71 +84,6 @@
     .page { display:none; animation:pageIn 0.25s cubic-bezier(0.16,1,0.3,1); }
     .page.active { display:block; }
     @keyframes pageIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-  <style>
-    :root {
-      --bg:#f8fafc; --surface:#ffffff; --card:#ffffff; --card-2:#f1f5f9;
-      --border:#e2e8f0; --border-2:#cbd5e1;
-      --accent:#2563eb; --accent-2:#1d4ed8;
-      --success:#059669; --danger:#dc2626; --warn:#d97706; --purple:#7c3aed;
-      --text:#0f172a; --text-2:#475569; --text-3:#94a3b8;
-      --shadow:0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06);
-      --shadow-lg:0 24px 60px rgba(15,23,42,0.18);
-      --accent-rgb:37,99,235;
-      --header-grad:linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.78));
-      --sheet-bg:rgba(255,255,255,0.96);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg:#080c14; --surface:#0f1420; --card:#141927; --card-2:#1a2030;
-        --border:#1e2840; --border-2:#2d3658;
-        --accent:#3b82f6; --accent-2:#60a5fa;
-        --success:#10b981; --danger:#ef4444; --warn:#f59e0b; --purple:#a855f7;
-        --text:#f1f5f9; --text-2:#94a3b8; --text-3:#64748b;
-        --shadow:0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.4);
-        --shadow-lg:0 30px 80px rgba(0,0,0,0.7);
-        --accent-rgb:59,130,246;
-        --header-grad:linear-gradient(180deg, rgba(15,20,32,0.92), rgba(15,20,32,0.7));
-        --sheet-bg:rgba(20,25,39,0.98);
-      }
-    }
-    * { -webkit-tap-highlight-color: transparent; }
-    html, body { margin:0; padding:0; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; overscroll-behavior-y:contain; font-family: "Plus Jakarta Sans", -apple-system, sans-serif; }
-    body { min-height:100vh; min-height:100dvh; padding-bottom:env(safe-area-inset-bottom); }
-    .mono, input[type="number"] { font-family: "JetBrains Mono", monospace; font-variant-numeric:tabular-nums; }
-    body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; background: radial-gradient(800px 400px at 80% -10%, rgba(var(--accent-rgb),0.08), transparent 60%), radial-gradient(700px 500px at -10% 30%, rgba(124,58,237,0.05), transparent 60%); }
-    ::-webkit-scrollbar { width:0; height:0; }
-    button { font-family:inherit; cursor:pointer; transition:transform 0.08s ease, opacity 0.15s, background 0.15s; }
-    button:active:not(:disabled) { transform:scale(0.96); }
-    button:disabled { opacity:0.5; cursor:not-allowed; }
-    input, select, textarea { font-family:inherit; background:var(--card-2); border:1px solid var(--border); color:var(--text); transition:border-color 0.15s, box-shadow 0.15s; }
-    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(var(--accent-rgb),0.15); }
-    select option { background:var(--card); color:var(--text); }
-    input::placeholder, textarea::placeholder { color:var(--text-3); }
-
-    .app-shell { display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; max-width:540px; margin:0 auto; position:relative; }
-    .top-bar { position:sticky; top:0; z-index:40; backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); background:var(--header-grad); border-bottom:1px solid var(--border); padding-top:env(safe-area-inset-top); }
-    .top-bar-inner { height:56px; padding:0 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .brand { display:flex; align-items:center; gap:10px; min-width:0; }
-    .brand-mark { width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, var(--accent), var(--purple)); display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:16px; box-shadow:0 4px 14px rgba(var(--accent-rgb),0.4); }
-    .brand-text { line-height:1.1; min-width:0; }
-    .brand-title { font-size:14px; font-weight:800; letter-spacing:-0.2px; color:var(--text); }
-    .brand-sub { font-size:10px; font-weight:600; color:var(--text-3); margin-top:1px; letter-spacing:0.3px; text-transform:uppercase; }
-    .top-actions { display:flex; gap:6px; align-items:center; }
-    .icon-btn { width:38px; height:38px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; font-size:16px; position:relative; }
-    .icon-btn .dot { position:absolute; top:7px; right:7px; width:6px; height:6px; border-radius:50%; background:var(--success); box-shadow:0 0 0 2px var(--card); }
-    .icon-btn .dot.err { background:var(--danger); }
-    .list-strip { position:sticky; top:calc(56px + env(safe-area-inset-top)); z-index:35; background:var(--bg); border-bottom:1px solid var(--border); }
-    .list-strip-inner { display:flex; gap:6px; padding:10px 14px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
-    .list-chip { flex-shrink:0; scroll-snap-align:start; padding:7px 14px; border-radius:100px; font-size:12px; font-weight:700; background:var(--card); border:1px solid var(--border); color:var(--text-2); white-space:nowrap; display:flex; align-items:center; gap:6px; position:relative; }
-    .list-chip.active { background:var(--text); color:var(--bg); border-color:var(--text); }
-    .list-chip .x { font-size:14px; line-height:1; opacity:0.5; margin-left:2px; display:none; }
-    .list-chip.active .x { display:inline; }
-    .list-chip-add { flex-shrink:0; padding:7px 12px; border-radius:100px; background:rgba(var(--accent-rgb),0.1); color:var(--accent); border:1px dashed rgba(var(--accent-rgb),0.4); font-size:12px; font-weight:700; }
-
-    .pages { flex:1; padding-bottom:92px; }
-    .page { display:none; animation:pageIn 0.25s cubic-bezier(0.16,1,0.3,1); }
-    .page.active { display:block; }
-    @keyframes pageIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 
     .search-shell { padding:16px 14px 6px; position:sticky; top:calc(56px + env(safe-area-inset-top)); z-index:30; background:linear-gradient(180deg, var(--bg) 70%, transparent); }
     .search-box { position:relative; }
@@ -1942,7 +1877,24 @@ async function startBulkCreate() {
   const delay=parseFloat(document.getElementById("bulkDelay").value)*1000;
   if(isNaN(from)||isNaN(to)||from>to) return showToast("⚠️ Angka tidak valid!","warn");
   const total=to-from+1; if(total>200) return showToast("⚠️ Max 200!","warn");
-  if(!confirm("Buat "+total+" topik di \""+g.name+"\"?")) return;
+  // Penomoran ulang itu normal di sini (nomor di-reset dari 1 tiap minggu), jadi
+  // nomor yang pernah dipakai TIDAK diblokir — cuma disebut di konfirmasi.
+  let paksaUlang = false;
+  {
+    let bentrok = 0;
+    for (let i = from; i <= to; i++) {
+      const nm = prefix + i;
+      const num = /^\d+$/.test(String(nm).trim()) ? parseInt(String(nm).trim(),10) : null;
+      if (g.topics.find(t => t.name === nm) || (num !== null && num <= getLastTopicNum(g))) bentrok++;
+    }
+    const pesan = bentrok > 0
+      ? "Buat " + total + " topik di \"" + g.name + "\"?\n\n" + bentrok +
+        " nomor pernah dipakai sebelumnya. Kalau ini penomoran ulang mingguan, lanjut saja \u2014 semuanya tetap dibuat."
+      : "Buat " + total + " topik di \"" + g.name + "\"?";
+    if (!confirm(pesan)) return;
+    paksaUlang = bentrok > 0;
+  }
+
   bulkShouldStop=false;
   const btn=document.getElementById("bulkBtn"),stopBtn=document.getElementById("bulkStopBtn");
   const progSec=document.getElementById("bulkProgressSection"),progBar=document.getElementById("bulkProgressBar"),progText=document.getElementById("bulkProgressText");
@@ -1955,13 +1907,13 @@ async function startBulkCreate() {
     const topicName=prefix+i;
     // Skip kalau masih di antrian ATAU nomornya sudah pernah dibuat (anti dobel)
     const nomorIni = /^\d+$/.test(String(topicName).trim()) ? parseInt(String(topicName).trim(),10) : null;
-    if(g.topics.find(t=>t.name===topicName)){addLog(logList,"⏭ Skip \""+topicName+"\" — masih di antrian","wait");done++;updateProgress(progBar,progText,done,total);continue;}
-    if(nomorIni!==null && nomorIni<=getLastTopicNum(g)){addLog(logList,"⏭ Skip \""+topicName+"\" — udah pernah dibikin","wait");done++;updateProgress(progBar,progText,done,total);continue;}
+    if(!paksaUlang && g.topics.find(t=>t.name===topicName)){addLog(logList,"⏭ Skip \""+topicName+"\" — masih di antrian","wait");done++;updateProgress(progBar,progText,done,total);continue;}
+    if(!paksaUlang && nomorIni!==null && nomorIni<=getLastTopicNum(g)){addLog(logList,"⏭ Skip \""+topicName+"\" — udah pernah dibikin","wait");done++;updateProgress(progBar,progText,done,total);continue;}
     addLog(logList,"⏳ \""+topicName+"\"...","wait");
     try {
       const res=await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/createForumTopic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:g.chatId,name:topicName})});
       const data=await res.json();
-      if(res.ok&&data.ok){g.topics.push({name:topicName,threadId:String(data.result.message_thread_id)});catatNomorTopik(g,topicName);saveGroups();updateLastLog(logList,"✅ \""+topicName+"\"","ok");success++;}
+      if(res.ok&&data.ok){g.topics.push({name:topicName,threadId:String(data.result.message_thread_id)});catatNomorTopik(g,topicName); if(paksaUlang && nomorIni!==null) g.lastTopicNum = nomorIni; saveGroups();updateLastLog(logList,"✅ \""+topicName+"\"","ok");success++;}
       else{updateLastLog(logList,"❌ \""+topicName+"\": "+data.description,"err");failed++;if(data.description?.includes("flood")||data.description?.includes("Too Many")){addLog(logList,"🚫 Flood! Stop.","err");break;}}
     }catch(err){updateLastLog(logList,"❌ \""+topicName+"\": "+err.message,"err");failed++;}
     done++; updateProgress(progBar,progText,done,total); renderTopicList(); renderGroupSidebar();
@@ -2013,7 +1965,27 @@ async function startMassalCreate() {
   const perGrup = to - from + 1;
   const grandTotal = perGrup * gids.length;
   if (grandTotal > 300) return showToast("⚠️ Max 300 total!","warn");
-  if (!confirm("Buat "+perGrup+" topik di "+gids.length+" grup (total "+grandTotal+")?")) return;
+  // Penomoran ulang itu normal di sini (nomor di-reset dari 1 tiap minggu), jadi
+  // nomor yang pernah dipakai TIDAK diblokir — cuma disebut di konfirmasi.
+  let paksaUlang = false;
+  {
+    let bentrok = 0;
+    gids.forEach(gid => {
+      const gg = GROUPS.find(x => x.id === gid); if (!gg) return;
+      for (let i = from; i <= to; i++) {
+        const nm = prefix + i;
+        const num = /^\d+$/.test(String(nm).trim()) ? parseInt(String(nm).trim(),10) : null;
+        if (gg.topics.find(t => t.name === nm) || (num !== null && num <= getLastTopicNum(gg))) bentrok++;
+      }
+    });
+    const pesan = bentrok > 0
+      ? "Buat " + perGrup + " topik di " + gids.length + " grup (total " + grandTotal + ")?\n\n" + bentrok +
+        " nomor pernah dipakai sebelumnya. Kalau ini penomoran ulang mingguan, lanjut saja \u2014 semuanya tetap dibuat."
+      : "Buat " + perGrup + " topik di " + gids.length + " grup (total " + grandTotal + ")?";
+    if (!confirm(pesan)) return;
+    paksaUlang = bentrok > 0;
+  }
+
 
   massalShouldStop = false;
   const btn = document.getElementById("massalBtn"), stopBtn = document.getElementById("massalStopBtn");
@@ -2033,13 +2005,13 @@ async function startMassalCreate() {
       const topicName = prefix + i;
       // Skip kalau masih di antrian ATAU nomornya sudah pernah dibuat di grup ini (anti dobel)
       const nomorIni = /^\d+$/.test(String(topicName).trim()) ? parseInt(String(topicName).trim(),10) : null;
-      if (g.topics.find(t => t.name === topicName)) { addLog(logList, "⏭ "+g.name+" → \""+topicName+"\" masih di antrian", "wait"); done++; updateProgress(progBar, progText, done, grandTotal); continue; }
-      if (nomorIni !== null && nomorIni <= getLastTopicNum(g)) { addLog(logList, "⏭ "+g.name+" → \""+topicName+"\" udah pernah dibikin", "wait"); done++; updateProgress(progBar, progText, done, grandTotal); continue; }
+      if (!paksaUlang && g.topics.find(t => t.name === topicName)) { addLog(logList, "⏭ "+g.name+" → \""+topicName+"\" masih di antrian", "wait"); done++; updateProgress(progBar, progText, done, grandTotal); continue; }
+      if (!paksaUlang && nomorIni !== null && nomorIni <= getLastTopicNum(g)) { addLog(logList, "⏭ "+g.name+" → \""+topicName+"\" udah pernah dibikin", "wait"); done++; updateProgress(progBar, progText, done, grandTotal); continue; }
       addLog(logList, "⏳ "+g.name+" → \""+topicName+"\"...", "wait");
       try {
         const res = await fetch("https://api.telegram.org/bot"+BOT_TOKEN+"/createForumTopic", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ chat_id: g.chatId, name: topicName }) });
         const data = await res.json();
-        if (res.ok && data.ok) { g.topics.push({ name: topicName, threadId: String(data.result.message_thread_id) }); catatNomorTopik(g, topicName); saveGroups(); updateLastLog(logList, "✅ "+g.name+" → \""+topicName+"\"", "ok"); success++; }
+        if (res.ok && data.ok) { g.topics.push({ name: topicName, threadId: String(data.result.message_thread_id) }); catatNomorTopik(g, topicName); if(paksaUlang && nomorIni!==null) g.lastTopicNum = nomorIni; saveGroups(); updateLastLog(logList, "✅ "+g.name+" → \""+topicName+"\"", "ok"); success++; }
         else { updateLastLog(logList, "❌ "+g.name+": "+data.description, "err"); failed++; if (data.description?.includes("flood") || data.description?.includes("Too Many")) { addLog(logList, "🚫 Flood! Jeda 30 detik...", "err"); await sleep(30000); } }
       } catch(err) { updateLastLog(logList, "❌ "+err.message, "err"); failed++; }
       done++; updateProgress(progBar, progText, done, grandTotal);
@@ -2547,7 +2519,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.28";
+const APP_VERSION = "2026.07.29";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
