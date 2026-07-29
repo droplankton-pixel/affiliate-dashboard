@@ -2607,7 +2607,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.29-coba";
+const APP_VERSION = "2026.07.29-2-coba";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
@@ -2677,24 +2677,45 @@ async function pulihkanFotoDariServer() {
 }
 function saveSupabaseConfig(key) { localStorage.setItem(SUPA_ANON_KEY_KEY, key); }
 
+let syncSedangJalan = false;
+
 async function syncFromSupabase() {
   const anonKey = loadSupabaseConfig();
   if (!anonKey) return;
+  // Sync dipanggil tiap 10 detik. Tanpa penjaga ini, sync yang masih jalan
+  // ditumpuk sync berikutnya sampai saling rebutan dan tidak pernah selesai.
+  if (syncSedangJalan) return;
+  syncSedangJalan = true;
   try {
-    const res = await fetch(SUPA_URL+"/rest/v1/products?order=created_at.desc&limit=500", {
-      headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey }
-    });
-    if (!res.ok) return;
-    const rows = await res.json();
+    // Ambil SEMUA baris bertahap. Dulu dibatasi 500 padahal produknya lebih
+    // banyak, jadi sisanya tidak pernah ikut turun ke alat ini.
+    let rows = [];
+    for (let dari = 0; dari < 20000; dari += 1000) {
+      const res = await fetch(SUPA_URL+"/rest/v1/products?order=created_at.desc&offset="+dari+"&limit=1000", {
+        headers: { "apikey": anonKey, "Authorization": "Bearer " + anonKey }
+      });
+      if (!res.ok) break;
+      const bagian = await res.json();
+      rows = rows.concat(bagian);
+      if (bagian.length < 1000) break;
+    }
     if (!rows.length) return;
+
+    // Baca database lokal SEKALI saja, lalu cari lewat peta. Dulu tiap baris
+    // membaca ulang seluruh isi database — ratusan ribu pembacaan.
+    const semuaLokal = await new Promise(ok => {
+      const req = db.transaction("products","readonly").objectStore("products").getAll();
+      req.onsuccess = () => ok(req.result || []); req.onerror = () => ok([]);
+    });
+    const peta = new Map();
+    semuaLokal.forEach(p => { if (p.supabaseId != null) peta.set(p.supabaseId, p); });
+
+    const belumPunya = rows.filter(r => !peta.has(r.id)).length;
+    if (belumPunya > 30) showToast("📥 Menarik "+belumPunya+" produk dari server…");
 
     let newCount = 0, updatedCount = 0;
     for (const row of rows) {
-      const existing = await new Promise(res2 => {
-        const req = db.transaction("products","readonly").objectStore("products").getAll();
-        req.onsuccess = () => res2(req.result.find(p => p.supabaseId === row.id));
-        req.onerror = () => res2(null);
-      });
+      const existing = peta.get(row.id);
 
       // Produk sudah ada di sini — tarik perubahan kalau baris server lebih baru.
       // Yang paling baru menang, jadi edit tidak bisa ketimpa versi lama.
@@ -2727,15 +2748,22 @@ async function syncFromSupabase() {
       };
       await dbAdd(record);
       newCount++;
+      // Gambar berkala saat menarik banyak produk, biar layar tidak kelihatan
+      // kosong sampai semuanya selesai
+      if (newCount % 60 === 0) { renderListTabs(); if (activeListId) await renderProducts(); }
     }
 
     if (newCount > 0 || updatedCount > 0) {
-      if (newCount > 0)     showToast("📥 "+newCount+" produk baru dari bot!");
+      if (newCount > 0)     showToast("📥 "+newCount+" produk masuk");
       if (updatedCount > 0) showToast("🔄 "+updatedCount+" produk diperbarui dari alat lain");
       renderListTabs();
       if (activeListId) await renderProducts();
     }
-  } catch(e) {}
+  } catch(e) {
+    showToast("❌ Sync gagal: " + (e && e.message ? e.message : e), "error");
+  } finally {
+    syncSedangJalan = false;
+  }
 }
 
 // Terapkan isi baris Supabase ke record lokal. Dipakai hanya kalau baris
