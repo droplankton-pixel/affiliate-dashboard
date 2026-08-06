@@ -1208,10 +1208,11 @@ function renderGrid(products, query) {
     if(thumbCount > 1) {
       countBadge = "<div class=\"photo-count\">📷 "+thumbCount+"</div>";
     }
-    // ATURAN SAMPUL: foto TERAKHIR yang tampil di kartu — foto yang sama dengan
-    // yang paling atas waktu dikirim ke Telegram, jadi dashboard dan grup
-    // menampilkan wajah produk yang sama. Urutan aslinya tidak diubah.
-    const idxSampul = allImgs.length ? allImgs.length - 1 : 0;
+    // ATURAN SAMPUL: foto PERTAMA (A) yang tampil di kartu.
+    // SENGAJA BEDA dari urutan kirim. Kirim = C,A,B (C paling atas di grup),
+    // tapi sampul di kartu tetap A. Jangan "diseragamkan" dengan urutan kirim —
+    // itu pernah dicoba dan salah. User minta A secara eksplisit, 6 Agu 2026.
+    const idxSampul = 0;
     const imgUrl = allImgs[idxSampul] || "";
 
     let displayName = esc(p.name);
@@ -1253,7 +1254,7 @@ function renderGrid(products, query) {
       (p.shopeeLink ? "<span class=\"src src-sp\">SHOPEE</span>" : "");
 
     card.innerHTML =
-      "<div class=\"pcard-thumb\" onclick=\"openLightbox(window._lbMap["+p.id+"], idxSampul)\">"+
+      "<div class=\"pcard-thumb\" onclick=\"openLightbox(window._lbMap["+p.id+"], "+idxSampul+")\">"+
         thumbInner + countBadge +
       "</div>"+
       "<div class=\"pcard-body\">"+
@@ -2617,7 +2618,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.29-3-coba";
+const APP_VERSION = "2026.08.06-2-coba";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
