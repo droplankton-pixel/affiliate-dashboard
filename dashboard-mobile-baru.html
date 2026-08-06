@@ -1208,9 +1208,10 @@ function renderGrid(products, query) {
     if(thumbCount > 1) {
       countBadge = "<div class=\"photo-count\">📷 "+thumbCount+"</div>";
     }
-    // ATURAN SAMPUL: foto ke-2 yang tampil di kartu. Kalau produk cuma punya
-    // satu foto, ya foto itu. Urutan aslinya tidak diubah.
-    const idxSampul = allImgs.length >= 2 ? 1 : 0;
+    // ATURAN SAMPUL: foto TERAKHIR yang tampil di kartu — foto yang sama dengan
+    // yang paling atas waktu dikirim ke Telegram, jadi dashboard dan grup
+    // menampilkan wajah produk yang sama. Urutan aslinya tidak diubah.
+    const idxSampul = allImgs.length ? allImgs.length - 1 : 0;
     const imgUrl = allImgs[idxSampul] || "";
 
     let displayName = esc(p.name);
