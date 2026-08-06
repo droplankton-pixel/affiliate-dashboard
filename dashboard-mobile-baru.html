@@ -1208,7 +1208,10 @@ function renderGrid(products, query) {
     if(thumbCount > 1) {
       countBadge = "<div class=\"photo-count\">📷 "+thumbCount+"</div>";
     }
-    const imgUrl = allImgs[0] || "";
+    // ATURAN SAMPUL: foto ke-2 yang tampil di kartu. Kalau produk cuma punya
+    // satu foto, ya foto itu. Urutan aslinya tidak diubah.
+    const idxSampul = allImgs.length >= 2 ? 1 : 0;
+    const imgUrl = allImgs[idxSampul] || "";
 
     let displayName = esc(p.name);
     if (query && p.name.toLowerCase().startsWith(query)) {
@@ -1249,7 +1252,7 @@ function renderGrid(products, query) {
       (p.shopeeLink ? "<span class=\"src src-sp\">SHOPEE</span>" : "");
 
     card.innerHTML =
-      "<div class=\"pcard-thumb\" onclick=\"openLightbox(window._lbMap["+p.id+"], 0)\">"+
+      "<div class=\"pcard-thumb\" onclick=\"openLightbox(window._lbMap["+p.id+"], idxSampul)\">"+
         thumbInner + countBadge +
       "</div>"+
       "<div class=\"pcard-body\">"+
@@ -1617,6 +1620,12 @@ async function sendToTelegram(pid) {
         if(product.tgImgUrl2) allPhotoSrcs.push({type:"url", url:product.tgImgUrl2});
         if(product.tgImgUrl3) allPhotoSrcs.push({type:"url", url:product.tgImgUrl3});
       }
+
+      // ATURAN URUTAN KIRIM: foto terakhir maju jadi yang pertama.
+      // Foto pertama itu yang membawa nama produk + link TikTok di caption,
+      // jadi ini menentukan foto mana yang jadi wajah produk di grup.
+      // Data produk tidak diubah — ini cuma urutan saat mengirim.
+      if (allPhotoSrcs.length >= 2) allPhotoSrcs.unshift(allPhotoSrcs.pop());
 
       // Siapkan foto DULU sebelum kirim apapun: link Shopee dikirim duluan,
       // jadi kita harus yakin fotonya siap — biar tidak ada link nyasar tanpa produk.
@@ -2607,7 +2616,7 @@ function showToast(msg,type){
 // ================================================================
 // Penanda versi — naikkan setiap kali file ini di-deploy ke GitHub Pages.
 // Dipakai user untuk memastikan PWA yang terpasang bukan versi cache lama.
-const APP_VERSION = "2026.07.29-2-coba";
+const APP_VERSION = "2026.07.29-3-coba";
 
 const SUPA_URL = "https://yualhfnkpcobgmvoldwz.supabase.co";
 const SUPA_ANON_KEY_KEY = "supabaseAnonKey";
